@@ -1,11 +1,11 @@
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  relationMode = "prisma"
-}
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
 model User {
@@ -15,18 +15,18 @@ model User {
 }
 
 model UserDB {
-  id                String   @id @default(uuid())
+  id                String         @id @default(uuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id])
   host              String
   port              Int
   dbType            String
   dbName            String
   username          String
   passwordEncrypted String
-  monitoringEnabled Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  monitoringEnabled Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [id])
   queryLogs         QueryLog[]
   tableUsages       TableUsage[]
   topSlowQueries    TopSlowQuery[]
@@ -35,36 +35,36 @@ model UserDB {
 model QueryLog {
   id           String   @id @default(uuid())
   userDbId     String
-  userDb       UserDB   @relation(fields: [userDbId], references: [id])
-  query        String
+  query        String   @unique
   calls        Int
   totalTimeMs  Float
   meanTimeMs   Float
   rowsReturned Int
   collectedAt  DateTime @default(now())
+  userDb       UserDB   @relation(fields: [userDbId], references: [id])
 }
 
 model TableUsage {
   id        String   @id @default(uuid())
   userDbId  String
-  userDb    UserDB   @relation(fields: [userDbId], references: [id])
   tableName String
   callCount Int      @default(0)
   lastUsed  DateTime @default(now())
   createdAt DateTime @default(now())
+  userDb    UserDB   @relation(fields: [userDbId], references: [id])
 }
 
 model TopSlowQuery {
   id           String   @id @default(uuid())
   userDbId     String
-  userDb       UserDB   @relation(fields: [userDbId], references: [id])
-  userId       String   // Optional if you want to link directly to User as well
+  userId       String
   query        String
   calls        Int      @default(1)
   totalTimeMs  Float
   meanTimeMs   Float
   rowsReturned Int
-  rank         Int      // Position in top K slowest queries (1 = slowest)
+  rank         Int
   collectedAt  DateTime @default(now())
   createdAt    DateTime @default(now())
+  userDb       UserDB   @relation(fields: [userDbId], references: [id])
 }

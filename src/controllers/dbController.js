@@ -27,6 +27,7 @@ async function testDBConnection({ host, port, dbName, username, password }) {
  // For parsing Postgres URLs safely
 
 async function connectDatabase(req, res) {
+  console.log('hello')
   const { url, database_url, host, port, dbType, username, password, dbName } = req.body;
 
   let dbConfig = {};

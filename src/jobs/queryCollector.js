@@ -19,37 +19,50 @@ async function collectLogs() {
     try {
       await client.connect();
       const { rows } = await client.query(`
-        SELECT query, calls, total_exec_time, mean_exec_time, rows
-        FROM pg_stat_statements
-        ORDER BY total_exec_time DESC
-        LIMIT 50;
+SELECT query, calls, total_exec_time, mean_exec_time, rows
+FROM pg_stat_statements
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = 'postgres')
+ORDER BY total_exec_time DESC
+LIMIT 50;
       `);
 
       for (const row of rows) {
         try {
-          await prisma.queryLog.upsert({
+          // First check if a record exists for this userDbId and query combination
+          const existingRecord = await prisma.queryLog.findFirst({
             where: {
-              userDbId_query: { 
-                userDbId: db.id,
-                query: row.query || ''
-              }
-            },
-            update: {
-              calls: parseInt(row.calls) || 0,
-              totalTimeMs: parseFloat(row.total_exec_time) || 0,
-              meanTimeMs: parseFloat(row.mean_exec_time) || 0,
-              rowsReturned: parseInt(row.rows) || 0,
-              collectedAt: new Date() // Update timestamp on update
-            },
-            create: {
               userDbId: db.id,
-              query: row.query || '',
-              calls: parseInt(row.calls) || 0,
-              totalTimeMs: parseFloat(row.total_exec_time) || 0,
-              meanTimeMs: parseFloat(row.mean_exec_time) || 0,
-              rowsReturned: parseInt(row.rows) || 0
+              query: row.query || ''
             }
           });
+
+          if (existingRecord) {
+            // Update existing record
+            await prisma.queryLog.update({
+              where: {
+                id: existingRecord.id
+              },
+              data: {
+                calls: parseInt(row.calls) || 0,
+                totalTimeMs: parseFloat(row.total_exec_time) || 0,
+                meanTimeMs: parseFloat(row.mean_exec_time) || 0,
+                rowsReturned: parseInt(row.rows) || 0,
+                collectedAt: new Date()
+              }
+            });
+          } else {
+            // Create new record
+            await prisma.queryLog.create({
+              data: {
+                userDbId: db.id,
+                query: row.query || '',
+                calls: parseInt(row.calls) || 0,
+                totalTimeMs: parseFloat(row.total_exec_time) || 0,
+                meanTimeMs: parseFloat(row.mean_exec_time) || 0,
+                rowsReturned: parseInt(row.rows) || 0
+              }
+            });
+          }
         } catch (logError) {
           console.error(`Failed to create log entry for query: ${row.query}`, logError.message);
         }
