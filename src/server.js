@@ -1,5 +1,5 @@
 const app = require("./app");
-const startCron = require("./jobs/queryCollector");
+const { startCron } = require("./jobs/queryCollector");
 
 const PORT = process.env.PORT || 3000;
 

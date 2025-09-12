@@ -3,6 +3,6 @@ const dbRoutes = require("./routes/dbRoutes");
 
 const app = express();
 app.use(express.json());
-app.use("/", dbRoutes);
+app.use("/api/db", dbRoutes);
 
 module.exports = app;

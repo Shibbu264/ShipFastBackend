@@ -1,8 +1,13 @@
 const prisma = require("../config/db");
+
+// Debug: Check if prisma is properly loaded
+console.log('Prisma client loaded:', !!prisma);
+console.log('Prisma client methods:', prisma ? Object.keys(prisma) : 'undefined');
 const { encrypt } = require("../utils/encryption");
 const { generateToken } = require("../utils/jwt");
 const { Client } = require("pg");
 const { parse } = require('pg-connection-string');
+const { collectLogs } = require("../jobs/queryCollector");
 
 
 async function testDBConnection({ host, port, dbName, username, password }) {
@@ -31,10 +36,19 @@ async function connectDatabase(req, res) {
       if (!database_url) {
         return res.status(400).json({ error: "database_url is required when url = true" });
       }
-      const parsed = parse(database_url); // { host, port, database, user, password }
+      const parsed = parse(database_url); 
+ // { host, port, database, user, password }
+      
+      // Validate parsed connection string
+      if (!parsed || !parsed.host || !parsed.database || !parsed.user || !parsed.password) {
+        return res.status(400).json({ 
+          error: "Invalid database URL format. Missing required fields: host, database, user, or password" 
+        });
+      }
+      
       dbConfig = {
         host: parsed.host,
-        port: parsed.port,
+        port: parsed.port || 5432, // Default PostgreSQL port
         dbType: "postgresql", // infer type from url
         dbName: parsed.database,
         username: parsed.user,
@@ -62,7 +76,7 @@ async function connectDatabase(req, res) {
       data: {
         userId: user.id,
         host: dbConfig.host,
-        port: dbConfig.port,
+        port: Number(dbConfig.port),
         dbType: dbConfig.dbType,
         dbName: dbConfig.dbName,
         username: dbConfig.username,
@@ -77,7 +91,7 @@ async function connectDatabase(req, res) {
     res.json({ token, monitoringEnabled: hasAccess });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to connect database" });
+    res.status(500).json({ error: "Failed to connect database"+ err.message });
   }
 }
 
@@ -91,4 +105,14 @@ async function getQueryLogs(req, res) {
   res.json(logs);
 }
 
-module.exports = { connectDatabase, getQueryLogs };
+async function testCollectLogs(req, res) {
+  try {
+    await collectLogs();
+    res.json({ message: "Log collection completed successfully" });
+  } catch (error) {
+    console.error("Error in test collect logs:", error);
+    res.status(500).json({ error: "Failed to collect logs", details: error.message });
+  }
+}
+
+module.exports = { connectDatabase, getQueryLogs, testCollectLogs };
