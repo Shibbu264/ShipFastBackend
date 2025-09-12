@@ -1,6 +1,6 @@
 const express = require("express");
 const { connectDatabase, getQueryLogs } = require("../controllers/dbController");
-const authenticateJWT = require("../middleware/auth");
+const authenticateJWT = require("../middlewares/auth");
 
 const router = express.Router();
 
