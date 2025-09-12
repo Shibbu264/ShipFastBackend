@@ -21,7 +21,7 @@ model UserDB {
   port              Int
   dbType            String
   dbName            String
-  username          String
+  username          String         @unique
   passwordEncrypted String
   monitoringEnabled Boolean        @default(false)
   createdAt         DateTime       @default(now())

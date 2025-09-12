@@ -27,7 +27,7 @@ async function testDBConnection({ host, port, dbName, username, password }) {
  // For parsing Postgres URLs safely
 
 async function connectDatabase(req, res) {
-  console.log('hello')
+
   const { url, database_url, host, port, dbType, username, password, dbName } = req.body;
 
   let dbConfig = {};
@@ -63,18 +63,36 @@ async function connectDatabase(req, res) {
       dbConfig = { host, port, dbType, dbName, username, password };
     }
 
-    // Create user if first-time
-    const user = await prisma.user.create({ data: {} });
-
-    // Test DB connection
+    // Test DB connection first
     const hasAccess = await testDBConnection(dbConfig);
 
     // Encrypt password
     const encryptedPass = encrypt(dbConfig.password);
 
-    // Save DB info
-    const dbEntry = await prisma.userDB.create({
-      data: {
+    // Create or find mock user with specific ID
+    let user = await prisma.user.findUnique({
+      where: { id: "shivu264" }
+    });
+    if (!user) {
+      user = await prisma.user.create({ 
+        data: { id: "shivu264" } 
+      });
+    }
+
+    // Upsert DB info - update if username exists, create if not
+    const dbEntry = await prisma.userDB.upsert({
+      where: { username: dbConfig.username },
+      update: {
+        userId: user.id,
+        host: dbConfig.host,
+        port: Number(dbConfig.port),
+        dbType: dbConfig.dbType,
+        dbName: dbConfig.dbName,
+        passwordEncrypted: encryptedPass,
+        monitoringEnabled: hasAccess,
+        updatedAt: new Date()
+      },
+      create: {
         userId: user.id,
         host: dbConfig.host,
         port: Number(dbConfig.port),
@@ -86,8 +104,8 @@ async function connectDatabase(req, res) {
       }
     });
 
-    // Generate JWT
-    const token = generateToken({ userId: user.id, dbId: dbEntry.id });
+    // Generate JWT with fixed userId and username
+    const token = generateToken({ userId: "shivu264", username: dbConfig.username });
 
     res.json({ token, monitoringEnabled: hasAccess });
   } catch (err) {
@@ -98,15 +116,24 @@ async function connectDatabase(req, res) {
 
 
 async function getQueryLogs(req, res) {
+  // First find the UserDB by username
+  const userDb = await prisma.userDB.findUnique({
+    where: { username: req.user.username }
+  });
+  
+  if (!userDb) {
+    return res.status(404).json({ error: "Database connection not found" });
+  }
+
   const logs = await prisma.queryLog.findMany({
-    where: { userDbId: req.user.dbId },
+    where: { userDbId: userDb.id },
     orderBy: { collectedAt: "desc" },
     take: 100
   });
   res.json(logs);
 }
 
-async function testCollectLogs(req, res) {
+async function runAllCronJobs(req, res) {
   try {
     await collectLogs();
     res.json({ message: "Log collection completed successfully" });
@@ -116,4 +143,4 @@ async function testCollectLogs(req, res) {
   }
 }
 
-module.exports = { connectDatabase, getQueryLogs, testCollectLogs };
+module.exports = { connectDatabase, getQueryLogs, runAllCronJobs };
