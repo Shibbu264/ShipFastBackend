@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { connectDatabase, getQueryLogs, testCollectLogs } = require("../controllers/dbController");
 const authenticateJWT = require("../middlewares/auth");
 
