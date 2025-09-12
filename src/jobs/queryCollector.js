@@ -27,8 +27,21 @@ async function collectLogs() {
 
       for (const row of rows) {
         try {
-          await prisma.queryLog.create({
-            data: {
+          await prisma.queryLog.upsert({
+            where: {
+              userDbId_query: { 
+                userDbId: db.id,
+                query: row.query || ''
+              }
+            },
+            update: {
+              calls: parseInt(row.calls) || 0,
+              totalTimeMs: parseFloat(row.total_exec_time) || 0,
+              meanTimeMs: parseFloat(row.mean_exec_time) || 0,
+              rowsReturned: parseInt(row.rows) || 0,
+              collectedAt: new Date() // Update timestamp on update
+            },
+            create: {
               userDbId: db.id,
               query: row.query || '',
               calls: parseInt(row.calls) || 0,
@@ -50,7 +63,7 @@ async function collectLogs() {
 }
 
 function startCron() {
-  cron.schedule("*/5 * * * *", collectLogs);
+  cron.schedule("*/500 * * * *", collectLogs);
 }
 
 module.exports = { startCron, collectLogs };
