@@ -4,6 +4,6 @@ const aiRoutes = require("./routes/airoutes");
 
 const app = express();
 app.use(express.json());
-app.use("/", dbRoutes);
 app.use("/ai", aiRoutes);
+app.use("/api/db", dbRoutes);
 module.exports = app;
