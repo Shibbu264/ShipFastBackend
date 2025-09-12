@@ -1,13 +1,53 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// Define your models here
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  dbs       UserDB[]
+}
+
+model UserDB {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  host              String
+  port              Int
+  dbType            String
+  dbName            String
+  username          String
+  passwordEncrypted String
+  monitoringEnabled Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  queryLogs         QueryLog[]
+  tableUsages       TableUsage[]
+}
+
+model QueryLog {
+  id           String   @id @default(uuid())
+  userDbId     String
+  userDb       UserDB   @relation(fields: [userDbId], references: [id])
+  query        String
+  calls        Int
+  totalTimeMs  Float
+  meanTimeMs   Float
+  rowsReturned Int
+  collectedAt  DateTime @default(now())
+}
+
+model TableUsage {
+  id        String   @id @default(uuid())
+  userDbId  String
+  userDb    UserDB   @relation(fields: [userDbId], references: [id])
+  tableName String
+  callCount Int      @default(0)
+  lastUsed  DateTime @default(now())
+  createdAt DateTime @default(now())
+}

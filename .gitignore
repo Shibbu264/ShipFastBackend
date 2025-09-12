@@ -3,3 +3,6 @@ node_modules
 .env
 
 /src/generated/prisma
+node_modules/.prisma/client/index.d.ts
+/node_modules
+/node_modules
