@@ -300,6 +300,11 @@ async function analyzeQueries(req, res) {
       include: { userDb: true }
     });
 
+    // Trigger suggestion analysis asynchronously (non-blocking)
+    runSuggestionAnalysis().catch(error => {
+      console.error("Background suggestion analysis failed:", error);
+    });
+
     if (!suggestions) {
       return res.json({ 
         suggestions: [],

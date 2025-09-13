@@ -155,12 +155,12 @@ ${JSON.stringify(queryData, null, 2)}`;
 }
 
 /**
- * Start the cron job to run every 10 minutes
+ * Start the cron job to run every 20 minutes
  */
 function startSuggestionCron() {
-  // Run every 10 minutes: "*/10 * * * *"
-  cron.schedule("*/10 * * * *", analyzeAndUpdateSuggestions);
-  console.log("⏰ Suggestion analysis cron job started (every 10 minutes)");
+  // Run every 20 minutes: "*/20 * * * *"
+  cron.schedule("*/20 * * * *", analyzeAndUpdateSuggestions);
+  console.log("⏰ Suggestion analysis cron job started (every 20 minutes)");
 }
 
 /**
