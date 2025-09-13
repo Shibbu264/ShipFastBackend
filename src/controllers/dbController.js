@@ -1,20 +1,30 @@
 const prisma = require("../config/db");
 
 // Debug: Check if prisma is properly loaded
-console.log('Prisma client loaded:', !!prisma);
-console.log('Prisma client methods:', prisma ? Object.keys(prisma) : 'undefined');
+console.log("Prisma client loaded:", !!prisma);
+console.log(
+  "Prisma client methods:",
+  prisma ? Object.keys(prisma) : "undefined"
+);
 const { encrypt } = require("../utils/encryption");
 const { generateToken } = require("../utils/jwt");
 const { Client } = require("pg");
-const { parse } = require('pg-connection-string');
+const { parse } = require("pg-connection-string");
 const { collectLogs } = require("../jobs/queryCollector");
 
-
 async function testDBConnection({ host, port, dbName, username, password }) {
-  const client = new Client({ host, port, database: dbName, user: username, password });
+  const client = new Client({
+    host,
+    port,
+    database: dbName,
+    user: username,
+    password,
+  });
   try {
     await client.connect();
-    const res = await client.query("SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';");
+    const res = await client.query(
+      "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';"
+    );
     return res.rowCount > 0;
   } catch (err) {
     console.error("DB Connection failed:", err.message);
@@ -24,41 +34,52 @@ async function testDBConnection({ host, port, dbName, username, password }) {
   }
 }
 
- // For parsing Postgres URLs safely
+// For parsing Postgres URLs safely
 
 async function connectDatabase(req, res) {
-
-  const { url, database_url, host, port, dbType, username, password, dbName } = req.body;
+  const { url, database_url, host, port, dbType, username, password, dbName } =
+    req.body;
 
   let dbConfig = {};
   try {
     if (url) {
       // Parse database_url if provided
       if (!database_url) {
-        return res.status(400).json({ error: "database_url is required when url = true" });
+        return res
+          .status(400)
+          .json({ error: "database_url is required when url = true" });
       }
-      const parsed = parse(database_url); 
- // { host, port, database, user, password }
-      
+      const parsed = parse(database_url);
+      // { host, port, database, user, password }
+
       // Validate parsed connection string
-      if (!parsed || !parsed.host || !parsed.database || !parsed.user || !parsed.password) {
-        return res.status(400).json({ 
-          error: "Invalid database URL format. Missing required fields: host, database, user, or password" 
+      if (
+        !parsed ||
+        !parsed.host ||
+        !parsed.database ||
+        !parsed.user ||
+        !parsed.password
+      ) {
+        return res.status(400).json({
+          error:
+            "Invalid database URL format. Missing required fields: host, database, user, or password",
         });
       }
-      
+
       dbConfig = {
         host: parsed.host,
         port: parsed.port || 5432, // Default PostgreSQL port
         dbType: "postgresql", // infer type from url
         dbName: parsed.database,
         username: parsed.user,
-        password: parsed.password
+        password: parsed.password,
       };
     } else {
       // Use standard format
       if (!host || !port || !dbType || !username || !password || !dbName) {
-        return res.status(400).json({ error: "Missing required database credentials" });
+        return res
+          .status(400)
+          .json({ error: "Missing required database credentials" });
       }
       dbConfig = { host, port, dbType, dbName, username, password };
     }
@@ -71,17 +92,17 @@ async function connectDatabase(req, res) {
 
     // Create or find mock user with specific ID
     let user = await prisma.user.findUnique({
-      where: { id: "shivu264" }
+      where: { id: "shivu264" },
     });
     if (!user) {
-      user = await prisma.user.create({ 
-        data: { id: "shivu264" } 
+      user = await prisma.user.create({
+        data: { id: "shivu264" },
       });
     }
 
     // Use findFirst instead of findUnique
     let dbEntry = await prisma.userDB.findFirst({
-      where: { username: dbConfig.username }
+      where: { username: dbConfig.username },
     });
 
     if (dbEntry) {
@@ -96,8 +117,8 @@ async function connectDatabase(req, res) {
           dbName: dbConfig.dbName,
           passwordEncrypted: encryptedPass,
           monitoringEnabled: hasAccess,
-          updatedAt: new Date()
-        }
+          updatedAt: new Date(),
+        },
       });
     } else {
       // Create new entry
@@ -110,28 +131,30 @@ async function connectDatabase(req, res) {
           dbName: dbConfig.dbName,
           username: dbConfig.username,
           passwordEncrypted: encryptedPass,
-          monitoringEnabled: hasAccess
-        }
+          monitoringEnabled: hasAccess,
+        },
       });
     }
 
     // Generate JWT with fixed userId and username
-    const token = generateToken({ userId: "shivu264", username: dbConfig.username });
+    const token = generateToken({
+      userId: "shivu264",
+      username: dbConfig.username,
+    });
 
     res.json({ token, monitoringEnabled: hasAccess });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to connect database"+ err.message });
+    res.status(500).json({ error: "Failed to connect database" + err.message });
   }
 }
-
 
 async function getQueryLogs(req, res) {
   // First find the UserDB by username
   const userDb = await prisma.userDB.findUnique({
-    where: { username: req.user.username }
+    where: { username: req.user.username },
   });
-  
+
   if (!userDb) {
     return res.status(404).json({ error: "Database connection not found" });
   }
@@ -139,9 +162,39 @@ async function getQueryLogs(req, res) {
   const logs = await prisma.queryLog.findMany({
     where: { userDbId: userDb.id },
     orderBy: { collectedAt: "desc" },
-    take: 100
+    take: 100,
   });
   res.json(logs);
+}
+
+async function getDashboardData(req, res) {
+  const userDb = await prisma.userDB.findUnique({
+    where: { username: req.user.username },
+  });
+
+  if (!userDb) {
+    return res.status(404).json({ error: "Database connection not found" });
+  }
+
+  const logs = await prisma.queryLog.findMany({
+    where: { userDbId: userDb.id },
+    orderBy: { collectedAt: "desc" },
+  });
+
+  const totalQueries = logs.length;
+
+  const totalCalls = logs.reduce((sum, log) => sum + log.calls, 0);
+  const totalTimeMs = logs.reduce((sum, log) => sum + log.totalTimeMs, 0);
+  const avgLatencyMs = totalCalls > 0 ? totalTimeMs / totalCalls : 0;
+
+  // Count slow queries (>500ms mean time)
+  const slowQueries = logs.filter((log) => log.meanTimeMs > 1000).length;
+
+  res.json({
+    totalQueries,
+    avgLatencyMs: Math.round(avgLatencyMs * 100) / 100, // Round to 2 decimal places
+    slowQueries,
+  });
 }
 
 async function runAllCronJobs(req, res) {
@@ -150,8 +203,15 @@ async function runAllCronJobs(req, res) {
     res.json({ message: "Log collection completed successfully" });
   } catch (error) {
     console.error("Error in test collect logs:", error);
-    res.status(500).json({ error: "Failed to collect logs", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to collect logs", details: error.message });
   }
 }
 
-module.exports = { connectDatabase, getQueryLogs, runAllCronJobs };
+module.exports = {
+  connectDatabase,
+  getQueryLogs,
+  runAllCronJobs,
+  getDashboardData,
+};
