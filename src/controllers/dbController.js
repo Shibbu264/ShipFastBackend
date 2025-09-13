@@ -167,6 +167,40 @@ async function getQueryLogs(req, res) {
   res.json(logs);
 }
 
+async function topKSlowQueries(req, res) {
+  // First find the UserDB by username
+  const userDb = await prisma.userDB.findUnique({
+    where: { username: req.user.username },
+  });
+
+  if (!userDb) {
+    return res.status(404).json({ error: "Database connection not found" });
+  }
+
+  // Get k parameter from request body
+  const { k } = req.body;
+
+  // Validate k parameter
+  if (!k || typeof k !== "number" || k <= 0) {
+    return res
+      .status(400)
+      .json({ error: "Invalid k parameter. Must be a positive number." });
+  }
+
+  // Get all query logs and sort by meanTimeMs in descending order
+  const logs = await prisma.queryLog.findMany({
+    where: { userDbId: userDb.id },
+    orderBy: { meanTimeMs: "desc" },
+    take: k,
+  });
+
+  res.json({
+    topKSlowQueries: logs,
+    count: logs.length,
+    requestedK: k,
+  });
+}
+
 async function getDashboardData(req, res) {
   const userDb = await prisma.userDB.findUnique({
     where: { username: req.user.username },
@@ -214,4 +248,5 @@ module.exports = {
   getQueryLogs,
   runAllCronJobs,
   getDashboardData,
+  topKSlowQueries,
 };
