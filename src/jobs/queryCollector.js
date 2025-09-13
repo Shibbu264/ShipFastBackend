@@ -198,7 +198,7 @@ async function collectLogs() {
   console.log("Starting regular query log collection...");
   
   try {
-    const dbs = await prisma.userDB.findMany({ where: { monitoringEnabled: true } });
+    const dbs = await prisma.userDB.findMany({});
 
     for (const db of dbs) {
       try {

@@ -152,6 +152,13 @@ async function connectDatabase(req, res) {
 }
 
 async function getQueryLogs(req, res) {
+  console.log("getQueryLogs called with req.user:", req.user);
+  
+  // Check if req.user exists
+  if (!req.user) {
+    return res.status(401).json({ error: "User not authenticated" });
+  }
+  
   // First find the UserDB by username
   const userDb = await prisma.userDB.findUnique({
     where: { username: req.user.username },
