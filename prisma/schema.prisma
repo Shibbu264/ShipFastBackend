@@ -11,6 +11,7 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
+  email     String   @default("geektechnologies133@gmail.com")
   dbs       UserDB[]
 }
 
@@ -35,12 +36,14 @@ model UserDB {
 model QueryLog {
   id           String   @id @default(uuid())
   userDbId     String
-  query        String   @unique
-  calls        Int
-  totalTimeMs  Float
-  meanTimeMs   Float
-  rowsReturned Int
+  query        String   
+  queryHash    String   @unique
+  calls        Int      @default(0)
+  totalTimeMs  Float    @default(0)
+  meanTimeMs   Float    @default(0)
+  rowsReturned Int      @default(0)
   collectedAt  DateTime @default(now())
+  alertsEnabled Boolean @default(false)
   userDb       UserDB   @relation(fields: [userDbId], references: [id])
 }
 

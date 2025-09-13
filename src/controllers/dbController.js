@@ -142,7 +142,7 @@ async function connectDatabase(req, res) {
       username: dbConfig.username,
     });
 
-    res.json({ token, monitoringEnabled: hasAccess });
+    res.json({ token, monitoringEnabled: hasAccess,dbName:dbEntry.dbName,username:dbEntry.username });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to connect database" + err.message });

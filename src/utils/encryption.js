@@ -19,4 +19,8 @@ function decrypt(hash) {
   return decrypted.toString();
 }
 
-module.exports = { encrypt, decrypt };
+function hashQuery(query) {
+  return crypto.createHash('sha256').update(query || '').digest('hex');
+}
+
+module.exports = { encrypt, decrypt, hashQuery };
