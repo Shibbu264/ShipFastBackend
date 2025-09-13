@@ -30,6 +30,7 @@ model UserDB {
   queryLogs         QueryLog[]
   tableUsages       TableUsage[]
   topSlowQueries    TopSlowQuery[]
+  top3Suggestions   Top3Suggestions?
 }
 
 model QueryLog {
@@ -69,4 +70,15 @@ model TopSlowQuery {
   collectedAt  DateTime @default(now())
   createdAt    DateTime @default(now())
   userDb       UserDB   @relation(fields: [userDbId], references: [id])
+}
+
+model Top3Suggestions {
+  id           String   @id @default(uuid())
+  userDbId     String
+  suggestions  Json     // Array of 3 suggestion objects
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userDb       UserDB   @relation(fields: [userDbId], references: [id])
+  
+  @@unique([userDbId]) // One suggestion set per userDb
 }

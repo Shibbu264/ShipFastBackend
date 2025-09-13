@@ -1,4 +1,5 @@
 const { streamTextChunks } = require("../services/gemini");
+const gemini = require("../config/gemini");
 
 /**
  * POST /ai/stream
@@ -92,4 +93,41 @@ async function streamGeneration(req, res) {
   }
 }
 
-module.exports = { streamGeneration };
+/**
+ * POST /ai/generate
+ * Body: { systemPrompt: string, prompt: string, model?: string, history?: Array }
+ * Returns a complete response (non-streaming)
+ */
+async function generateResponse(req, res) {
+  console.log("🚀 generateResponse called with body:", req.body);
+  const { systemPrompt, prompt, model, history } = req.body || {};
+
+  if (!prompt || typeof prompt !== "string") {
+    console.log("❌ Invalid prompt:", prompt);
+    return res.status(400).json({ error: "prompt is required" });
+  }
+
+  if (!systemPrompt || typeof systemPrompt !== "string") {
+    console.log("❌ Invalid systemPrompt:", systemPrompt);
+    return res.status(400).json({ error: "systemPrompt is required" });
+  }
+  
+  console.log("✅ Request validated, generating response...");
+
+  try {
+    // Non-streaming response using the simplified Gemini service
+    const response = await gemini.generateResponse(systemPrompt, prompt, { history, model });
+    res.json({ 
+      response,
+      success: true 
+    });
+  } catch (error) {
+    console.error("❌ Error in generateResponse:", error);
+    res.status(500).json({ 
+      error: "Failed to generate response", 
+      details: error.message 
+    });
+  }
+}
+
+module.exports = { streamGeneration, generateResponse };
