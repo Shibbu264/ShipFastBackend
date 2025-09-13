@@ -1,4 +1,6 @@
 const prisma = require("../config/db");
+const gemini = require("../config/gemini");
+const { runSuggestionAnalysis } = require("../jobs/suggestionAnalyzer");
 
 // Debug: Check if prisma is properly loaded
 console.log("Prisma client loaded:", !!prisma);
@@ -141,7 +143,7 @@ async function connectDatabase(req, res) {
       userId: "shivu264",
       username: dbConfig.username,
     });
-
+    getQueryLogs()
     res.json({ token, monitoringEnabled: hasAccess,dbName:dbEntry.dbName,username:dbEntry.username });
   } catch (err) {
     console.error(err);
@@ -251,12 +253,73 @@ async function getDashboardData(req, res) {
 async function runAllCronJobs(req, res) {
   try {
     await collectLogs();
-    res.json({ message: "Log collection completed successfully" });
+    await runSuggestionAnalysis();
+    res.json({ message: "All cron jobs completed successfully" });
   } catch (error) {
-    console.error("Error in test collect logs:", error);
+    console.error("Error in cron jobs:", error);
     res
       .status(500)
-      .json({ error: "Failed to collect logs", details: error.message });
+      .json({ error: "Failed to run cron jobs", details: error.message });
+  }
+}
+
+/**
+ * POST /generate-suggestions
+ * Manually trigger suggestion analysis
+ */
+async function generateSuggestions(req, res) {
+  try {
+    await runSuggestionAnalysis();
+    res.json({ message: "Suggestion analysis completed successfully" });
+  } catch (error) {
+    console.error("Error in generateSuggestions:", error);
+    res.status(500).json({ 
+      error: "Failed to generate suggestions", 
+      details: error.message 
+    });
+  }
+}
+
+/**
+ * GET /get-insights
+ * Fetches pre-computed top 3 suggestions from the database
+ */
+async function analyzeQueries(req, res) {
+  try {
+    const userDb = await prisma.userDB.findUnique({
+      where: { username: req.user.username },
+    });
+
+    if (!userDb) {
+      return res.status(404).json({ error: "Database connection not found" });
+    }
+
+    // Get the top 3 suggestions for this userDb
+    const suggestions = await prisma.top3Suggestions.findUnique({
+      where: { userDbId: userDb.id },
+      include: { userDb: true }
+    });
+
+    if (!suggestions) {
+      return res.json({ 
+        suggestions: [],
+        message: "No suggestions available yet. Suggestions are generated every 10 minutes.",
+        lastUpdated: null
+      });
+    }
+
+    res.json({
+      suggestions: suggestions.suggestions,
+      lastUpdated: suggestions.updatedAt,
+      message: "Top 3 database optimization suggestions"
+    });
+
+  } catch (error) {
+    console.error("Error in analyzeQueries:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch suggestions", 
+      details: error.message 
+    });
   }
 }
 
@@ -266,4 +329,6 @@ module.exports = {
   runAllCronJobs,
   getDashboardData,
   topKSlowQueries,
+  analyzeQueries,
+  generateSuggestions,
 };
