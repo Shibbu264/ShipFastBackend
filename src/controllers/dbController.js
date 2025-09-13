@@ -143,8 +143,13 @@ async function connectDatabase(req, res) {
       userId: "shivu264",
       username: dbConfig.username,
     });
-    getQueryLogs()
-    res.json({ token, monitoringEnabled: hasAccess,dbName:dbEntry.dbName,username:dbEntry.username });
+
+    res.json({
+      token,
+      monitoringEnabled: hasAccess,
+      dbName: dbEntry.dbName,
+      username: dbEntry.username,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to connect database" + err.message });
@@ -153,12 +158,12 @@ async function connectDatabase(req, res) {
 
 async function getQueryLogs(req, res) {
   console.log("getQueryLogs called with req.user:");
-  
+
   // Check if req.user exists
   if (!req?.user) {
     return res.status(401).json({ error: "User not authenticated" });
   }
-  
+
   // First find the UserDB by username
   const userDb = await prisma.userDB.findUnique({
     where: { username: req.user.username },
@@ -214,9 +219,9 @@ async function topKSlowQueries(req, res) {
     }
 
     return {
-      id: log.id, 
+      id: log.id,
       query: log.query,
-      avgTime: Math.round(log.meanTimeMs), 
+      avgTime: Math.round(log.meanTimeMs),
       frequency: log.calls,
       severity: severity,
     };
@@ -280,9 +285,9 @@ async function generateSuggestions(req, res) {
     res.json({ message: "Suggestion analysis completed successfully" });
   } catch (error) {
     console.error("Error in generateSuggestions:", error);
-    res.status(500).json({ 
-      error: "Failed to generate suggestions", 
-      details: error.message 
+    res.status(500).json({
+      error: "Failed to generate suggestions",
+      details: error.message,
     });
   }
 }
@@ -333,9 +338,9 @@ async function getAllQueries(req, res) {
     });
   } catch (error) {
     console.error("Error in getAllQueries:", error);
-    res.status(500).json({ 
-      error: "Failed to fetch queries", 
-      details: error.message 
+    res.status(500).json({
+      error: "Failed to fetch queries",
+      details: error.message,
     });
   }
 }
@@ -357,33 +362,33 @@ async function analyzeQueries(req, res) {
     // Get the top 3 suggestions for this userDb
     const suggestions = await prisma.top3Suggestions.findUnique({
       where: { userDbId: userDb.id },
-      include: { userDb: true }
+      include: { userDb: true },
     });
 
     // Trigger suggestion analysis asynchronously (non-blocking)
-    runSuggestionAnalysis().catch(error => {
+    runSuggestionAnalysis().catch((error) => {
       console.error("Background suggestion analysis failed:", error);
     });
 
     if (!suggestions) {
-      return res.json({ 
+      return res.json({
         suggestions: [],
-        message: "No suggestions available yet. Suggestions are generated every 10 minutes.",
-        lastUpdated: null
+        message:
+          "No suggestions available yet. Suggestions are generated every 10 minutes.",
+        lastUpdated: null,
       });
     }
 
     res.json({
       suggestions: suggestions.suggestions,
       lastUpdated: suggestions.updatedAt,
-      message: "Top 3 database optimization suggestions"
+      message: "Top 3 database optimization suggestions",
     });
-
   } catch (error) {
     console.error("Error in analyzeQueries:", error);
-    res.status(500).json({ 
-      error: "Failed to fetch suggestions", 
-      details: error.message 
+    res.status(500).json({
+      error: "Failed to fetch suggestions",
+      details: error.message,
     });
   }
 }
