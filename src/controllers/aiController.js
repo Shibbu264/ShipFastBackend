@@ -18,6 +18,63 @@ async function streamGeneration(req, res) {
   
   console.log("✅ Request validated, starting stream...");
 
+  // Get database context if user is authenticated
+  let databaseContext = "";
+  if (req.user && req.user.username) {
+    try {
+      // Find the UserDB by username
+      const userDb = await prisma.userDB.findUnique({
+        where: { username: req.user.username },
+      });
+
+      if (userDb) {
+        // Get query logs
+        const queryLogs = await prisma.queryLog.findMany({
+          where: { userDbId: userDb.id },
+          orderBy: { meanTimeMs: "desc" },
+          take: 20 // Get top 20 slowest queries
+        });
+
+        // Get table structures
+        const tableStructures = await prisma.tableStructure.findMany({
+          where: { userDbId: userDb.id }
+        });
+
+        // Build context string
+        if (queryLogs.length > 0 || tableStructures.length > 0) {
+          databaseContext = "\n\n=== DATABASE CONTEXT ===\n";
+          
+          if (queryLogs.length > 0) {
+            databaseContext += "\n**Recent Query Performance:**\n";
+            queryLogs.forEach((log, index) => {
+              databaseContext += `${index + 1}. Query: ${log.query.substring(0, 100)}${log.query.length > 100 ? '...' : ''}\n`;
+              databaseContext += `   - Calls: ${log.calls}, Mean Time: ${Math.round(log.meanTimeMs)}ms, Total Time: ${Math.round(log.totalTimeMs)}ms\n`;
+            });
+          }
+
+          if (tableStructures.length > 0) {
+            databaseContext += "\n**Table Structures:**\n";
+            tableStructures.forEach(table => {
+              databaseContext += `\nTable: ${table.tableName} (${table.rowCount} rows)\n`;
+              databaseContext += `Columns: ${table.columns.map(col => `${col.column_name} (${col.data_type})`).join(', ')}\n`;
+              if (table.primaryKeys && table.primaryKeys.length > 0) {
+                databaseContext += `Primary Keys: ${table.primaryKeys.join(', ')}\n`;
+              }
+              if (table.indexes && table.indexes.length > 0) {
+                databaseContext += `Indexes: ${table.indexes.map(idx => idx.indexname).join(', ')}\n`;
+              }
+            });
+          }
+          
+          databaseContext += "\n=== END DATABASE CONTEXT ===\n\n";
+        }
+      }
+    } catch (contextError) {
+      console.error("Error fetching database context:", contextError);
+      // Continue without context if there's an error
+    }
+  }
+
   // Set SSE headers
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -52,7 +109,31 @@ async function streamGeneration(req, res) {
       res.write(": connected\n\n");
     }
 
-    for await (const text of streamTextChunks({ prompt, system, history, model })) {
+    // Create system prompt for database expert
+    const databaseSystemPrompt = `You are a database performance expert and optimization specialist. You have access to the user's specific database context including:
+
+1. **Query Performance Data**: Recent slow queries with execution times, call counts, and performance metrics
+2. **Table Structures**: Complete schema information including columns, data types, primary keys, foreign keys, and existing indexes
+3. **Row Counts**: Current table sizes and data distribution
+
+You can provide specific, actionable recommendations based on this real database context. You do NOT need to ask for more information - you already have everything needed to give expert database advice.
+
+When analyzing queries, focus on:
+- Missing indexes that would improve performance
+- Query structure optimizations
+- Join order improvements
+- WHERE clause optimizations
+- Specific SQL statements for fixes
+
+Be direct and specific with your recommendations.`;
+
+    // Combine system prompts
+    const finalSystemPrompt = system ? `${databaseSystemPrompt}\n\n${system}` : databaseSystemPrompt;
+    
+    // Combine user prompt with database context
+    const contextualPrompt = databaseContext + prompt;
+    
+    for await (const text of streamTextChunks({ prompt: contextualPrompt, system: finalSystemPrompt, history, model })) {
       // Only check if response is still writable, ignore connection events
       if (res.destroyed || !res.writable) {
         console.log("⚠️ Response not writable, breaking");

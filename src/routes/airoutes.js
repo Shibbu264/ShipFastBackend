@@ -18,7 +18,7 @@ router.options("/analyze-query", (req, res) => {
   res.status(200).end();
 });
 
-router.post("/stream", streamGeneration);
+router.post("/stream", authenticateJWT, streamGeneration);
 router.post("/generate", generateResponse);
 router.post("/analyze-query", authenticateJWT, analyzeQuery);
 
