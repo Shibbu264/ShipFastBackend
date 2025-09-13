@@ -213,7 +213,57 @@ async function collectLogs() {
         });
         try {
           await client.connect();
-          const { rows } = await client.query(/* same SQL you wrote with extra fields */);
+          const { rows } = await client.query(`SELECT
+    query,
+    calls,
+    total_exec_time,
+    mean_exec_time,
+    min_exec_time,
+    max_exec_time,
+    rows,
+    shared_blks_hit,
+    shared_blks_read,
+    shared_blks_written,
+    local_blks_hit,
+    local_blks_read,
+    local_blks_written,
+    temp_blks_read,
+    temp_blks_written,
+    blk_read_time,
+    blk_write_time,
+    -- Extract query type (SELECT/INSERT/UPDATE/DELETE)
+    CASE
+      WHEN query ILIKE 'select%' THEN 'SELECT'
+      WHEN query ILIKE 'insert%' THEN 'INSERT'
+      WHEN query ILIKE 'update%' THEN 'UPDATE'
+      WHEN query ILIKE 'delete%' THEN 'DELETE'
+      ELSE 'OTHER'
+    END AS query_type,
+    -- Extract first table name if present (basic regex parsing)
+    REGEXP_REPLACE(
+        REGEXP_REPLACE(query, '.*FROM\\s+([a-zA-Z0-9_\\.]+).*', '\\1'),
+        ';.*', ''
+    ) AS first_table
+FROM pg_stat_statements
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+  -- Exclude system/internal queries
+  AND query NOT ILIKE 'SELECT * FROM pgbouncer%'
+  AND query NOT ILIKE '%pg_catalog%'
+  AND query NOT ILIKE '%information_schema%'
+  AND query NOT ILIKE 'SET %'
+  AND query NOT ILIKE 'SHOW %'
+  AND query NOT ILIKE 'BEGIN%'
+  AND query NOT ILIKE 'COMMIT%'
+  AND query NOT ILIKE 'ROLLBACK%'
+  AND query NOT ILIKE 'DEALLOCATE%'
+  AND query NOT ILIKE 'DISCARD%'
+  AND query NOT ILIKE 'FETCH %'
+  AND query NOT ILIKE 'CLOSE %'
+  AND query NOT ILIKE 'ANALYZE%'
+  AND query NOT ILIKE 'VACUUM%'
+ORDER BY total_exec_time DESC
+LIMIT 200;
+`);
 
           for (const row of rows) {
             try {
@@ -223,8 +273,6 @@ async function collectLogs() {
                 meanTimeMs: parseFloat(row.mean_exec_time) || 0,
                 minTimeMs: parseFloat(row.min_exec_time) || 0,
                 maxTimeMs: parseFloat(row.max_exec_time) || 0,
-                planningTime: parseFloat(row.planning_time) || 0,
-                executionTime: parseFloat(row.execution_time) || 0,
                 rowsReturned: parseInt(row.rows) || 0,
 
                 sharedBlksHit: parseInt(row.shared_blks_hit) || 0,
@@ -339,18 +387,18 @@ async function runAllCronJobs() {
  */
 function startCron() {
   console.log("⏰ Starting all cron jobs...");
-  
+
   // Regular collection for all queries
   cron.schedule("*/5 * * * *", collectLogs);
 
   // Alert-specific collection (run more frequently)
   cron.schedule("*/2 * * * *", collectAlertQueries);
   console.log("✅ Alert query collection cron started (every 2 minutes)");
-  
+
   // Table data collection (run every 10 minutes)
   cron.schedule("*/10 * * * *", collectTableData);
   console.log("✅ Table data collection cron started (every 10 minutes)");
-  
+
   // Run table data collection immediately on startup
   console.log("🚀 Running table data collection immediately...");
   collectTableData().catch((error) => {
