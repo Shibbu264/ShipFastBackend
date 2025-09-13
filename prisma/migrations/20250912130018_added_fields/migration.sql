@@ -16,7 +16,6 @@ CREATE TABLE "public"."UserDB" (
     "dbName" TEXT NOT NULL,
     "username" TEXT NOT NULL,
     "passwordEncrypted" TEXT NOT NULL,
-    "monitoringEnabled" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

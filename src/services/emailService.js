@@ -2,14 +2,16 @@ const nodemailer = require('nodemailer');
 
 // Hardcoded recipient email
 const HARDCODED_EMAIL = "nischaysinha261@gmail.com";
+// Use a verified sender email (your actual email that's verified in Brevo)
+const SENDER_EMAIL = "nischaysinha261@gmail.com"; // Replace with your verified email
 
-// Update the transporter configuration for better delivery
+// Configure the transporter with improved delivery options
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
   port: 587,
   secure: false,
   auth: {
-    user: "96efe2001@smtp-brevo.com",
+    user: "96efe2001@smtp-brevo.com", // This is just your SMTP username
     pass: "UkchqaTWzrvbyPZp"
   },
   // Add these options for better delivery
@@ -21,11 +23,20 @@ const transporter = nodemailer.createTransport({
   maxMessages: 100
 });
 
-// Add delivery verification
+/**
+ * Sends an email notification with delivery verification
+ * 
+ * @param {Object} options - Email options
+ * @param {string} options.to - Recipient email address (will be overridden)
+ * @param {string} options.subject - Email subject
+ * @param {string} options.text - Plain text email content
+ * @param {string} options.html - HTML email content
+ * @returns {Promise} - Promise that resolves when email is sent
+ */
 async function sendEmail({ to, subject, text, html }) {
   try {
     const info = await transporter.sendMail({
-      from: '"ShipFast DB Monitor" <no-reply@shipfast.com>',
+      from: `"ShipFast DB Monitor" <${SENDER_EMAIL}>`,
       to: HARDCODED_EMAIL,
       subject,
       text,
@@ -51,34 +62,6 @@ async function sendEmail({ to, subject, text, html }) {
       }
     }
     
-    return info;
-  } catch (error) {
-    console.error(`Error sending email to ${HARDCODED_EMAIL}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Sends an email notification
- * 
- * @param {Object} options - Email options
- * @param {string} options.to - Recipient email address (will be overridden)
- * @param {string} options.subject - Email subject
- * @param {string} options.text - Plain text email content
- * @param {string} options.html - HTML email content
- * @returns {Promise} - Promise that resolves when email is sent
- */
-async function sendEmail({ to, subject, text, html }) {
-  try {
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || '"ShipFast DB Monitor" <no-reply@shipfast.com>',
-      to: HARDCODED_EMAIL, // Always use hardcoded email
-      subject,
-      text,
-      html
-    });
-    
-    console.log(`Email sent to ${HARDCODED_EMAIL}: ${info.messageId}`);
     return info;
   } catch (error) {
     console.error(`Error sending email to ${HARDCODED_EMAIL}:`, error);
