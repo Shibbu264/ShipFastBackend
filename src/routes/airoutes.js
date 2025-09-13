@@ -1,5 +1,6 @@
 const express = require("express");
-const { streamGeneration, generateResponse } = require("../controllers/aiController");
+const { streamGeneration, generateResponse, analyzeQuery } = require("../controllers/aiController");
+const authenticateJWT = require("../middlewares/auth");
 // Public endpoint; add auth if needed
 
 const router = express.Router();
@@ -13,7 +14,12 @@ router.options("/generate", (req, res) => {
   res.status(200).end();
 });
 
+router.options("/analyze-query", (req, res) => {
+  res.status(200).end();
+});
+
 router.post("/stream", streamGeneration);
 router.post("/generate", generateResponse);
+router.post("/analyze-query", authenticateJWT, analyzeQuery);
 
 module.exports = router; 

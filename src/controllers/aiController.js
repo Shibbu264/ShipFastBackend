@@ -1,5 +1,6 @@
 const { streamTextChunks } = require("../services/gemini");
 const gemini = require("../config/gemini");
+const prisma = require("../config/db");
 
 /**
  * POST /ai/stream
@@ -130,4 +131,160 @@ async function generateResponse(req, res) {
   }
 }
 
-module.exports = { streamGeneration, generateResponse };
+async function analyzeQuery(req, res) {
+  try {
+    // Get the query ID from request body
+    const { id } = req.body;
+    
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "Query ID is required and must be a string"
+      });
+    }
+
+    // Find the UserDB by username
+    const userDb = await prisma.userDB.findUnique({
+      where: { username: req.user.username },
+    });
+
+    if (!userDb) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Database connection not found" 
+      });
+    }
+
+    // Find the query log by ID and userDbId
+    const queryLog = await prisma.queryLog.findFirst({
+      where: { 
+        id: id,
+        userDbId: userDb.id 
+      }
+    });
+
+    if (!queryLog) {
+      return res.status(404).json({
+        success: false,
+        error: "Query not found or doesn't belong to your database"
+      });
+    }
+
+    // Get table structures for this database
+    const tableStructures = await prisma.tableStructure.findMany({
+      where: { userDbId: userDb.id }
+    });
+
+    if (tableStructures.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No table structure data found. Please run table data collection first."
+      });
+    }
+
+    // Prepare context data for LLM
+    const contextData = {
+      query: queryLog.query,
+      queryStats: {
+        calls: queryLog.calls,
+        totalTimeMs: queryLog.totalTimeMs,
+        meanTimeMs: queryLog.meanTimeMs,
+        rowsReturned: queryLog.rowsReturned,
+        collectedAt: queryLog.collectedAt
+      },
+      tables: tableStructures.map(t => ({
+        tableName: t.tableName,
+        columns: t.columns,
+        primaryKeys: t.primaryKeys,
+        foreignKeys: t.foreignKeys,
+        indexes: t.indexes,
+        rowCount: t.rowCount
+      }))
+    };
+
+    // System prompt for query analysis
+    const systemPrompt = `You are a database performance expert. Analyze the provided SQL query and table structures to provide optimization recommendations.
+
+Return your response as a JSON object with this exact structure:
+{
+  "success": true,
+  "generalDescription": "Detailed analysis with numbered recommendations (use \\n\\n for line breaks)",
+  "recommendedIndexes": [
+    {
+      "table": "table_name",
+      "columns": "column1, column2",
+      "priority": "High/Medium/Low",
+      "description": "Brief description of the optimization",
+      "sqlStatement": "CREATE INDEX statement"
+    }
+  ],
+  "optimizedQuery": {
+    "description": "Description of optimizations made",
+    "sqlStatement": "Optimized SQL query"
+  }
+}
+
+Focus on:
+1. Missing indexes that would improve performance
+2. Query structure optimizations
+3. Join order improvements
+4. WHERE clause optimizations
+5. Specific, actionable recommendations
+
+Be specific about table names, column names, and provide exact SQL statements.`;
+
+    const analysisPrompt = `Please analyze this SQL query and provide optimization recommendations:
+
+Query to analyze:
+${contextData.query}
+
+Query Performance Stats:
+- Calls: ${contextData.queryStats.calls}
+- Total Time: ${contextData.queryStats.totalTimeMs}ms
+- Mean Time: ${contextData.queryStats.meanTimeMs}ms
+- Rows Returned: ${contextData.queryStats.rowsReturned}
+- Last Collected: ${contextData.queryStats.collectedAt}
+
+Table structures and indexes:
+${JSON.stringify(contextData.tables, null, 2)}
+
+Provide your analysis in the exact JSON format specified.`;
+
+    // Get AI analysis
+    const analysisResponse = await gemini.generateResponse(systemPrompt, analysisPrompt, {
+      model: "gemini-2.5-pro"
+    });
+
+    // Parse the JSON response
+    let analysis;
+    try {
+      // Extract JSON from response (in case there's extra text)
+      const jsonMatch = analysisResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysis = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No valid JSON found in response");
+      }
+    } catch (parseError) {
+      console.error("Failed to parse AI response:", parseError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to parse AI analysis response",
+        details: parseError.message
+      });
+    }
+
+    // Return the analysis
+    res.json(analysis);
+
+  } catch (error) {
+    console.error("Error in analyzeQuery:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to analyze query",
+      details: error.message
+    });
+  }
+}
+
+module.exports = { streamGeneration, generateResponse, analyzeQuery };
