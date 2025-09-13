@@ -152,10 +152,10 @@ async function connectDatabase(req, res) {
 }
 
 async function getQueryLogs(req, res) {
-  console.log("getQueryLogs called with req.user:", req.user);
+  console.log("getQueryLogs called with req.user:");
   
   // Check if req.user exists
-  if (!req.user) {
+  if (!req?.user) {
     return res.status(401).json({ error: "User not authenticated" });
   }
   

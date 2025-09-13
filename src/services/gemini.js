@@ -2,6 +2,7 @@
 const gemini = require("../config/gemini");
 
 // For backward compatibility, export the streamTextChunks function
-const { streamTextChunks } = gemini;
+// Bind the method to the instance to preserve 'this' context
+const streamTextChunks = gemini.streamTextChunks.bind(gemini);
 
 module.exports = { streamTextChunks };

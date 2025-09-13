@@ -239,15 +239,6 @@ LIMIT 200;
           for (const row of rows) {
             try {
               // Create query object to check if it's critical
-              const queryObj = {
-                query: row.query || '',
-                calls: parseInt(row.calls) || 0,
-                totalTimeMs: parseFloat(row.total_exec_time) || 0,
-                meanTimeMs: parseFloat(row.mean_exec_time) || 0,
-                rowsReturned: parseInt(row.rows) || 0,
-                collectedAt: new Date()
-              };
-
               // First check if a record exists for this userDbId and query combination
               const existingRecord = await prisma.queryLog.findFirst({
                 where: {
