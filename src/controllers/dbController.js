@@ -281,6 +281,59 @@ async function generateSuggestions(req, res) {
 }
 
 /**
+ * GET /get-all-queries
+ * Gets all queries from QueryLog in the same format as topKSlowQueries
+ */
+async function getAllQueries(req, res) {
+  try {
+    // First find the UserDB by username
+    const userDb = await prisma.userDB.findUnique({
+      where: { username: req.user.username },
+    });
+
+    if (!userDb) {
+      return res.status(404).json({ error: "Database connection not found" });
+    }
+
+    // Get all query logs for this userDb
+    const logs = await prisma.queryLog.findMany({
+      where: { userDbId: userDb.id },
+      orderBy: { meanTimeMs: "desc" },
+    });
+
+    // Transform logs to the required format (same as topKSlowQueries)
+    const formattedLogs = logs.map((log, index) => {
+      // Determine severity based on meanTimeMs
+      let severity = "low";
+      if (log.meanTimeMs > 1000) {
+        severity = "high";
+      } else if (log.meanTimeMs > 500) {
+        severity = "medium";
+      }
+
+      return {
+        id: log.id, // Use actual database ID
+        query: log.query,
+        avgTime: Math.round(log.meanTimeMs), // Round to nearest integer
+        frequency: log.calls,
+        severity: severity,
+      };
+    });
+
+    res.json({
+      logs: formattedLogs,
+      count: formattedLogs.length,
+    });
+  } catch (error) {
+    console.error("Error in getAllQueries:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch queries", 
+      details: error.message 
+    });
+  }
+}
+
+/**
  * GET /get-insights
  * Fetches pre-computed top 3 suggestions from the database
  */
@@ -334,6 +387,7 @@ module.exports = {
   runAllCronJobs,
   getDashboardData,
   topKSlowQueries,
+  getAllQueries,
   analyzeQueries,
   generateSuggestions,
 };
