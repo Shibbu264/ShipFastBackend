@@ -79,30 +79,41 @@ async function connectDatabase(req, res) {
       });
     }
 
-    // Upsert DB info - update if username exists, create if not
-    const dbEntry = await prisma.userDB.upsert({
-      where: { username: dbConfig.username },
-      update: {
-        userId: user.id,
-        host: dbConfig.host,
-        port: Number(dbConfig.port),
-        dbType: dbConfig.dbType,
-        dbName: dbConfig.dbName,
-        passwordEncrypted: encryptedPass,
-        monitoringEnabled: hasAccess,
-        updatedAt: new Date()
-      },
-      create: {
-        userId: user.id,
-        host: dbConfig.host,
-        port: Number(dbConfig.port),
-        dbType: dbConfig.dbType,
-        dbName: dbConfig.dbName,
-        username: dbConfig.username,
-        passwordEncrypted: encryptedPass,
-        monitoringEnabled: hasAccess
-      }
+    // Use findFirst instead of findUnique
+    let dbEntry = await prisma.userDB.findFirst({
+      where: { username: dbConfig.username }
     });
+
+    if (dbEntry) {
+      // Update existing entry
+      dbEntry = await prisma.userDB.update({
+        where: { id: dbEntry.id },
+        data: {
+          userId: user.id,
+          host: dbConfig.host,
+          port: Number(dbConfig.port),
+          dbType: dbConfig.dbType,
+          dbName: dbConfig.dbName,
+          passwordEncrypted: encryptedPass,
+          monitoringEnabled: hasAccess,
+          updatedAt: new Date()
+        }
+      });
+    } else {
+      // Create new entry
+      dbEntry = await prisma.userDB.create({
+        data: {
+          userId: user.id,
+          host: dbConfig.host,
+          port: Number(dbConfig.port),
+          dbType: dbConfig.dbType,
+          dbName: dbConfig.dbName,
+          username: dbConfig.username,
+          passwordEncrypted: encryptedPass,
+          monitoringEnabled: hasAccess
+        }
+      });
+    }
 
     // Generate JWT with fixed userId and username
     const token = generateToken({ userId: "shivu264", username: dbConfig.username });

@@ -4,6 +4,11 @@ const { streamGeneration } = require("../controllers/aiController");
 
 const router = express.Router();
 
+// Handle preflight OPTIONS request
+router.options("/stream", (req, res) => {
+  res.status(200).end();
+});
+
 router.post("/stream", streamGeneration);
 
 module.exports = router; 

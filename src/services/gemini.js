@@ -20,18 +20,33 @@ function getModel(model = "gemini-2.5-pro") {
  * @param {string} [opts.model]
  */
 async function* streamTextChunks({ prompt, system, history = [], model }) {
-  const m = getModel(model || "gemini-1.5-flash");
-  const result = await m.generateContentStream({
-    systemInstruction: system,
-    contents: [
-      ...(Array.isArray(history) ? history : []),
-      { role: "user", parts: [{ text: prompt }] }
-    ]
-  });
+  console.log("🔍 Starting streamTextChunks with:", { prompt, system, historyLength: history.length, model });
+  
+  try {
+    const m = getModel(model || "gemini-2.5-pro");
+    console.log("✅ Model initialized");
+    
+    const requestData = {
+      systemInstruction: system,
+      contents: [
+        ...(Array.isArray(history) ? history : []),
+        { role: "user", parts: [{ text: prompt }] }
+      ]
+    };
+    console.log("📤 Request data:", JSON.stringify(requestData, null, 2));
+    
+    const result = await m.generateContentStream(requestData);
+    console.log("📡 Stream started");
 
-  for await (const chunk of result.stream) {
-    const text = chunk.text();
-    if (text) yield text;
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      console.log("📦 Chunk received:", text ? text.substring(0, 50) + "..." : "empty");
+      if (text) yield text;
+    }
+    console.log("✅ Stream completed");
+  } catch (error) {
+    console.error("❌ Error in streamTextChunks:", error);
+    throw error;
   }
 }
 
