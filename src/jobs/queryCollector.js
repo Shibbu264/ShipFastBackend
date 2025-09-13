@@ -1,6 +1,6 @@
 const cron = require("node-cron");
 const prisma = require("../config/db");
-const { decrypt } = require("../utils/encryption");
+const { decrypt, hashQuery } = require("../utils/encryption");
 const { Client } = require("pg");
 
 async function collectLogs() {
@@ -28,11 +28,14 @@ LIMIT 50;
 
       for (const row of rows) {
         try {
-          // First check if a record exists for this userDbId and query combination
+          const queryText = row.query || '';
+          const queryHashValue = hashQuery(queryText);
+          
+          // First check if a record exists for this userDbId and queryHash combination
           const existingRecord = await prisma.queryLog.findFirst({
             where: {
               userDbId: db.id,
-              query: row.query || ''
+              queryHash: queryHashValue
             }
           });
 
@@ -55,7 +58,8 @@ LIMIT 50;
             await prisma.queryLog.create({
               data: {
                 userDbId: db.id,
-                query: row.query || '',
+                query: queryText,
+                queryHash: queryHashValue,
                 calls: parseInt(row.calls) || 0,
                 totalTimeMs: parseFloat(row.total_exec_time) || 0,
                 meanTimeMs: parseFloat(row.mean_exec_time) || 0,
