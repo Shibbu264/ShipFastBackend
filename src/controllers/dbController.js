@@ -13,6 +13,7 @@ const { generateToken } = require("../utils/jwt");
 const { Client } = require("pg");
 const { parse } = require("pg-connection-string");
 const { collectLogs } = require("../jobs/queryCollector");
+const { testTableDataCollection } = require("./collectTableDataController");
 
 async function testDBConnection({ host, port, dbName, username, password }) {
   const client = new Client({
@@ -393,6 +394,33 @@ async function analyzeQueries(req, res) {
   }
 }
 
+async function testTableDataCollectionEndpoint(req, res) {
+  try {
+    const result = await testTableDataCollection();
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+        data: result.data
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.message,
+        error: result.error || "Unknown error"
+      });
+    }
+  } catch (error) {
+    console.error("Error in test table data collection:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to test table data collection",
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   connectDatabase,
   getQueryLogs,
@@ -402,4 +430,5 @@ module.exports = {
   getAllQueries,
   analyzeQueries,
   generateSuggestions,
+  testTableDataCollectionEndpoint,
 };

@@ -3,6 +3,7 @@ const prisma = require("../config/db");
 const { decrypt, hashQuery } = require("../utils/encryption");
 const { Client } = require("pg");
 const { sendQueryAlert } = require("../services/emailService");
+const { collectTableData } = require("../controllers/collectTableDataController");
 
 // Configuration for critical query detection
 const CRITICAL_QUERY_THRESHOLD_MS = 500; // Critical if mean execution time > 500ms
@@ -341,6 +342,7 @@ async function runAllCronJobs() {
   console.log("Running all jobs manually...");
   await collectLogs();
   await collectAlertQueries();
+  await collectTableData();
   return { message: "All jobs completed" };
 }
 
@@ -348,11 +350,25 @@ async function runAllCronJobs() {
  * Start the cron jobs
  */
 function startCron() {
+  console.log("⏰ Starting all cron jobs...");
+  
   // Regular collection for all queries
   cron.schedule("*/5 * * * *", collectLogs);
+  console.log("✅ Query log collection cron started (every 5 minutes)");
   
   // Alert-specific collection (run more frequently)
   cron.schedule("*/2 * * * *", collectAlertQueries);
+  console.log("✅ Alert query collection cron started (every 2 minutes)");
+  
+  // Table data collection (run every 10 minutes)
+  cron.schedule("*/10 * * * *", collectTableData);
+  console.log("✅ Table data collection cron started (every 10 minutes)");
+  
+  // Run table data collection immediately on startup
+  console.log("🚀 Running table data collection immediately...");
+  collectTableData().catch((error) => {
+    console.error("❌ Initial table data collection failed:", error);
+  });
 }
 
 // Export functions

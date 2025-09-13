@@ -9,6 +9,7 @@ const {
   getAllQueries,
   analyzeQueries,
   generateSuggestions,
+  testTableDataCollectionEndpoint,
 } = require("../controllers/dbController");
 const authenticateJWT = require("../middlewares/auth");
 
@@ -22,5 +23,6 @@ router.get("/get-all-queries", authenticateJWT, getAllQueries);
 router.get("/get-insights", authenticateJWT, analyzeQueries);
 router.post("/generate-suggestions", generateSuggestions);
 router.post("/runAllCronJobs", runAllCronJobs);
+router.post("/test-table-data-collection", testTableDataCollectionEndpoint);
 
 module.exports = router;

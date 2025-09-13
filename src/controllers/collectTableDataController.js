@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const prisma = require("../config/db");
 const { decrypt } = require("../utils/encryption");
 const { Client } = require("pg");
+const { v4: uuidv4 } = require("uuid");
 
 /**
  * Collects table structure data for all connected databases (LOGGING ONLY)
@@ -89,6 +90,7 @@ async function collectTableDataForDatabase(userDb) {
             updatedAt: new Date(),
           },
           create: {
+            id: uuidv4(),
             userDbId: userDb.id,
             tableName: table.table_name,
             schemaName: "public",
@@ -97,6 +99,7 @@ async function collectTableDataForDatabase(userDb) {
             foreignKeys: tableData.foreignKeys,
             indexes: tableData.indexes,
             rowCount: tableData.rowCount,
+            updatedAt: new Date(),
           },
         });
 
