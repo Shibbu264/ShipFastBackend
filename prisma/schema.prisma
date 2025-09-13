@@ -26,25 +26,25 @@ model UserDB {
   passwordEncrypted String
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  monitoringEnabled Boolean        @default(false)
   user              User           @relation(fields: [userId], references: [id])
   queryLogs         QueryLog[]
   tableUsages       TableUsage[]
   topSlowQueries    TopSlowQuery[]
-  top3Suggestions   Top3Suggestions?
 }
 
 model QueryLog {
-  id           String   @id @default(uuid())
-  userDbId     String
-  query        String   
-  queryHash    String   @unique
-  calls        Int      @default(0)
-  totalTimeMs  Float    @default(0)
-  meanTimeMs   Float    @default(0)
-  rowsReturned Int      @default(0)
-  collectedAt  DateTime @default(now())
-  alertsEnabled Boolean @default(false)
-  userDb       UserDB   @relation(fields: [userDbId], references: [id])
+  id            String   @id @default(uuid())
+  userDbId      String
+  query         String
+  queryHash     String   @unique
+  calls         Int      @default(0)
+  totalTimeMs   Float    @default(0)
+  meanTimeMs    Float    @default(0)
+  rowsReturned  Int      @default(0)
+  collectedAt   DateTime @default(now())
+  alertsEnabled Boolean  @default(false)
+  userDb        UserDB   @relation(fields: [userDbId], references: [id])
 }
 
 model TableUsage {
@@ -72,13 +72,26 @@ model TopSlowQuery {
   userDb       UserDB   @relation(fields: [userDbId], references: [id])
 }
 
+model TableStructure {
+  id          String   @id
+  userDbId    String
+  tableName   String
+  schemaName  String   @default("public")
+  columns     Json
+  primaryKeys Json
+  foreignKeys Json
+  indexes     Json
+  rowCount    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@unique([userDbId, schemaName, tableName])
+}
+
 model Top3Suggestions {
-  id           String   @id @default(uuid())
-  userDbId     String
-  suggestions  Json     // Array of 3 suggestion objects
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  userDb       UserDB   @relation(fields: [userDbId], references: [id])
-  
-  @@unique([userDbId]) // One suggestion set per userDb
+  id          String   @id
+  userDbId    String   @unique
+  suggestions Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
 }
