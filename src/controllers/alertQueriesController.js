@@ -1,0 +1,123 @@
+const prisma = require("../config/db");
+const { hashQuery } = require("../utils/encryption");
+
+/**
+ * POST /alert-query
+ * Enables alerts for a specific query by setting alertsEnabled=true
+ * If query doesn't exist, creates it with alertsEnabled=true
+ * 
+ * Request body: {
+ *   queryId: string,  // ID of the existing query to enable alerts for
+ *   query: string,    // Optional: Full query text (required if creating new)
+ *   userDbId: string  // Optional: Database ID (required if creating new)
+ * }
+ */
+async function enableQueryAlert(req, res) {
+  try {
+    const { queryId, query, userDbId } = req.body;
+    
+    if (!queryId && !query) {
+      return res.status(400).json({ error: "Either queryId or query text is required" });
+    }
+    
+    if (!userDbId) {
+      return res.status(400).json({ error: "userDbId is required when not authenticated" });
+    }
+    
+    // Use the userDbId from the request body instead of req.user
+    const userDb = await prisma.userDB.findUnique({
+      where: { id: userDbId },
+    });
+
+    if (!userDb) {
+      return res.status(404).json({ error: "Database connection not found" });
+    }
+    
+    let updatedQuery;
+    
+    // If queryId is provided, try to find existing query
+    if (queryId) {
+      // Find the query to make sure it exists and belongs to this user
+      const existingQuery = await prisma.queryLog.findUnique({
+        where: { id: queryId },
+      });
+      
+      if (existingQuery) {
+        // Verify the query belongs to this user's database
+        if (existingQuery.userDbId !== userDb.id) {
+          return res.status(403).json({ error: "You don't have permission to modify this query" });
+        }
+        
+        // Update the query to enable alerts
+        updatedQuery = await prisma.queryLog.update({
+          where: { id: queryId },
+          data: { alertsEnabled: true }
+        });
+      } else if (query) {
+        // Query not found by ID but query text is provided - create new
+        console.log("Query not found by ID. Creating new query with alertsEnabled=true");
+        
+        // Create a new query with alertsEnabled=true
+        updatedQuery = await prisma.queryLog.create({
+          data: {
+            userDbId: userDb.id,
+            query: query,
+            queryHash: hashQuery(query),
+            calls: 0,
+            totalTimeMs: 0,
+            meanTimeMs: 0,
+            rowsReturned: 0,
+            alertsEnabled: true,
+            collectedAt: new Date()
+          }
+        });
+      } else {
+        return res.status(404).json({ error: "Query not found and no query text provided for creation" });
+      }
+    } else {
+      // No queryId provided, create new query from query text
+      if (!query) {
+        return res.status(400).json({ error: "Query text is required when not providing queryId" });
+      }
+      
+      // Create a new query with alertsEnabled=true
+      updatedQuery = await prisma.queryLog.create({
+        data: {
+          userDbId: userDb.id,
+          query: query,
+          queryHash: hashQuery(query),
+          calls: 0,
+          totalTimeMs: 0,
+          meanTimeMs: 0,
+          rowsReturned: 0,
+          alertsEnabled: true,
+          collectedAt: new Date()
+        }
+      });
+    }
+    
+    // Return success with updated query data
+    res.json({
+      success: true,
+      message: queryId ? "Alert enabled for query successfully" : "New query created with alerts enabled",
+      query: {
+        id: updatedQuery.id,
+        query: updatedQuery.query.substring(0, 100) + (updatedQuery.query.length > 100 ? '...' : ''),
+        alertsEnabled: updatedQuery.alertsEnabled,
+        meanTimeMs: updatedQuery.meanTimeMs,
+        isNewlyCreated: !queryId || (queryId && !await prisma.queryLog.findUnique({ where: { id: queryId } }))
+      }
+    });
+    
+  } catch (error) {
+    console.error("Error enabling query alert:", error);
+    res.status(500).json({ 
+      error: "Failed to enable query alert", 
+      details: error.message 
+    });
+  }
+}
+
+module.exports = {
+  enableQueryAlert
+};

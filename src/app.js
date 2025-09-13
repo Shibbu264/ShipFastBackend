@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dbRoutes = require("./routes/dbRoutes");
 const aiRoutes = require("./routes/airoutes");
+const alertRoutes = require("./routes/alertQueryRoutes");
 
 const app = express();
 
@@ -18,4 +19,5 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use("/ai", aiRoutes);
 app.use("/db", dbRoutes);
+app.use("/api/alerts", alertRoutes);
 module.exports = app;
