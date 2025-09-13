@@ -43,7 +43,7 @@ async function analyzeAndUpdateSuggestions() {
 
         // System prompt for structured suggestions
         const systemPrompt = `You are a database performance expert. Analyze the provided slow queries and provide exactly 3 specific, actionable recommendations for optimization.
-
+Don't analyze query related to create or system queries.
 Return your response as a JSON array with exactly 3 objects, each containing:
 - "title": A brief title for the suggestion
 - "description": Detailed explanation of the issue and solution

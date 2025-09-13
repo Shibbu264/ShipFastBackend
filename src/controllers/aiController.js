@@ -285,7 +285,7 @@ async function analyzeQuery(req, res) {
 
     // System prompt for query analysis
     const systemPrompt = `You are a database performance expert. Analyze the provided SQL query and table structures to provide optimization recommendations.
-
+If the query is already optimized, return the query as it is.
 Return your response as a JSON object with this exact structure:
 {
   "success": true,
