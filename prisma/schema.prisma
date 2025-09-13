@@ -31,6 +31,7 @@ model UserDB {
   queryLogs         QueryLog[]
   tableUsages       TableUsage[]
   topSlowQueries    TopSlowQuery[]
+  top3Suggestions   Top3Suggestions?
 }
 
 model QueryLog {
@@ -89,9 +90,10 @@ model TableStructure {
 }
 
 model Top3Suggestions {
-  id          String   @id
+  id          String   @id @default(uuid())
   userDbId    String   @unique
   suggestions Json
   createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
+  userDb      UserDB   @relation(fields: [userDbId], references: [id])
 }
