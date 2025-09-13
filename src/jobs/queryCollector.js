@@ -28,7 +28,7 @@ function isCriticalQuery(query) {
  */
 async function collectAlertQueries() {
   console.log("Starting alert query collection...");
-  
+
   try {
     // Get all queries with alertsEnabled=true from the QueryLog table
     const alertQueries = await prisma.queryLog.findMany({
@@ -39,12 +39,12 @@ async function collectAlertQueries() {
         userDb: true // Include the related database info
       }
     });
-    
+
     console.log(`Found ${alertQueries.length} alert-enabled queries`);
 
     // Group queries by database ID for efficiency
     const queriesByDb = {};
-    
+
     // Organize queries by database
     alertQueries.forEach(query => {
       if (!queriesByDb[query.userDbId]) {
@@ -59,13 +59,13 @@ async function collectAlertQueries() {
     // Process each database that has alert-enabled queries
     for (const dbId in queriesByDb) {
       const { db, queries } = queriesByDb[dbId];
-      
+
       // Skip if database info is missing
       if (!db) {
         console.error(`Missing database info for dbId: ${dbId}`);
         continue;
       }
-      
+
       try {
         const password = decrypt(db.passwordEncrypted);
         const client = new Client({
@@ -75,11 +75,11 @@ async function collectAlertQueries() {
           user: db.username,
           password
         });
-  
+
         try {
           await client.connect();
           console.log(`Connected to database ${db.dbName} for alert query checking`);
-          
+
           // Get query performance data
           const { rows } = await client.query(`
             SELECT query, calls, total_exec_time, mean_exec_time, rows
@@ -88,27 +88,27 @@ async function collectAlertQueries() {
             ORDER BY total_exec_time DESC
             LIMIT 100;
           `);
-  
+
           console.log(`Retrieved ${rows.length} queries from database ${db.dbName}`);
-  
+
           const criticalQueries = [];
-          
+
           // Create a Map of queries by text for faster lookup
           const queryMap = new Map();
           queries.forEach(q => {
             queryMap.set(q.query, q);
           });
-          
+
           // Check each database query
           for (const row of rows) {
             const queryText = row.query || '';
-            
+
             // Skip if this query is not in our alert-enabled list
             if (!queryMap.has(queryText)) continue;
-            
+
             // Get the related alert query from our list
             const alertQuery = queryMap.get(queryText);
-            
+
             // Create query object with performance data
             const queryObj = {
               query: queryText,
@@ -118,15 +118,15 @@ async function collectAlertQueries() {
               rowsReturned: parseInt(row.rows) || 0,
               collectedAt: new Date()
             };
-            
+
             // Debug log the query performance
             console.log(`Checking alert query: ${queryText.substring(0, 50)}... Mean time: ${queryObj.meanTimeMs}ms`);
-            
+
             // Check if this is a critical query (>500ms)
             if (isCriticalQuery(queryObj)) {
               console.log(`Critical query found: ${queryText.substring(0, 50)}... (${queryObj.meanTimeMs}ms)`);
               criticalQueries.push(queryObj);
-              
+
               // Update the performance metrics for this alert query
               await prisma.queryLog.update({
                 where: { id: alertQuery.id },
@@ -138,7 +138,7 @@ async function collectAlertQueries() {
                   collectedAt: new Date()
                 }
               });
-              
+
               // Record in TopSlowQuery table
               await prisma.topSlowQuery.create({
                 data: {
@@ -155,20 +155,20 @@ async function collectAlertQueries() {
               });
             }
           }
-          
+
           // Send email alert for critical queries (no cooldown)
           if (criticalQueries.length > 0) {
             console.log(`Preparing to send alert for ${criticalQueries.length} critical queries in database ${db.dbName}`);
-            
+
             try {
               const dbInfo = {
                 host: db.host,
                 dbName: db.dbName,
                 username: db.username
               };
-              
+
               await sendQueryAlert(criticalQueries, dbInfo, HARDCODED_EMAIL);
-              
+
               console.log(`✅ Alert email sent to ${HARDCODED_EMAIL} for ${criticalQueries.length} critical queries in database ${db.dbName}`);
             } catch (emailError) {
               console.error(`Failed to send alert email: ${emailError.message}`, emailError);
@@ -188,7 +188,7 @@ async function collectAlertQueries() {
   } catch (error) {
     console.error("Error in collectAlertQueries:", error);
   }
-  
+
   console.log("Alert query collection completed");
 }
 
@@ -197,7 +197,7 @@ async function collectAlertQueries() {
  */
 async function collectLogs() {
   console.log("Starting regular query log collection...");
-  
+
   try {
     const dbs = await prisma.userDB.findMany({ where: { monitoringEnabled: true } });
 
@@ -211,69 +211,56 @@ async function collectLogs() {
           user: db.username,
           password
         });
-
         try {
           await client.connect();
-          const { rows } = await client.query(`
-SELECT query, calls, total_exec_time, mean_exec_time, rows
-FROM pg_stat_statements
-WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
-  -- Exclude pgbouncer/system/internal queries
-  AND query NOT ILIKE 'SELECT * FROM pgbouncer%'
-  AND query NOT ILIKE '%pg_catalog%'
-  AND query NOT ILIKE '%information_schema%'
-  AND query NOT ILIKE 'SET %'
-  AND query NOT ILIKE 'SHOW %'
-  AND query NOT ILIKE 'BEGIN%'
-  AND query NOT ILIKE 'COMMIT%'
-  AND query NOT ILIKE 'ROLLBACK%'
-  AND query NOT ILIKE 'DEALLOCATE%'
-  AND query NOT ILIKE 'DISCARD%'
-  AND query NOT ILIKE 'FETCH %'
-  AND query NOT ILIKE 'CLOSE %'
-  AND query NOT ILIKE 'ANALYZE%'
-  AND query NOT ILIKE 'VACUUM%'
-ORDER BY total_exec_time DESC
-LIMIT 200;
-          `);
+          const { rows } = await client.query(/* same SQL you wrote with extra fields */);
 
           for (const row of rows) {
             try {
-              // Create query object to check if it's critical
-              // First check if a record exists for this userDbId and query combination
+              const data = {
+                calls: parseInt(row.calls) || 0,
+                totalTimeMs: parseFloat(row.total_exec_time) || 0,
+                meanTimeMs: parseFloat(row.mean_exec_time) || 0,
+                minTimeMs: parseFloat(row.min_exec_time) || 0,
+                maxTimeMs: parseFloat(row.max_exec_time) || 0,
+                planningTime: parseFloat(row.planning_time) || 0,
+                executionTime: parseFloat(row.execution_time) || 0,
+                rowsReturned: parseInt(row.rows) || 0,
+
+                sharedBlksHit: parseInt(row.shared_blks_hit) || 0,
+                sharedBlksRead: parseInt(row.shared_blks_read) || 0,
+                sharedBlksWritten: parseInt(row.shared_blks_written) || 0,
+                localBlksHit: parseInt(row.local_blks_hit) || 0,
+                localBlksRead: parseInt(row.local_blks_read) || 0,
+                localBlksWritten: parseInt(row.local_blks_written) || 0,
+                tempBlksRead: parseInt(row.temp_blks_read) || 0,
+                tempBlksWritten: parseInt(row.temp_blks_written) || 0,
+                blkReadTime: parseFloat(row.blk_read_time) || 0,
+                blkWriteTime: parseFloat(row.blk_write_time) || 0,
+
+                queryType: row.query_type || 'OTHER',
+                firstTable: row.first_table || null,
+                collectedAt: new Date(),
+                alertsEnabled: false
+              };
+
+              // Check if record exists
               const existingRecord = await prisma.queryLog.findFirst({
-                where: {
-                  userDbId: db.id,
-                  query: row.query || ''
-                }
+                where: { userDbId: db.id, query: row.query || '' }
               });
 
               if (existingRecord) {
-                // Update existing record
                 await prisma.queryLog.update({
-                  where: {
-                    id: existingRecord.id
-                  },
-                  data: {
-                    calls: parseInt(row.calls) || 0,
-                    totalTimeMs: parseFloat(row.total_exec_time) || 0,
-                    meanTimeMs: parseFloat(row.mean_exec_time) || 0,
-                    rowsReturned: parseInt(row.rows) || 0,
-                    collectedAt: new Date()
-                  }
+                  where: { id: existingRecord.id },
+                  data
                 });
               } else {
-                // Create new record
                 await prisma.queryLog.create({
                   data: {
                     userDbId: db.id,
                     query: row.query || '',
                     queryHash: hashQuery(row.query || ''),
-                    calls: parseInt(row.calls) || 0,
-                    totalTimeMs: parseFloat(row.total_exec_time) || 0,
-                    meanTimeMs: parseFloat(row.mean_exec_time) || 0,
-                    rowsReturned: parseInt(row.rows) || 0,
-                    alertsEnabled: false // Default to no alerts for new queries
+                    ...data
                   }
                 });
               }
@@ -281,7 +268,8 @@ LIMIT 200;
               console.error(`Failed to process query: ${row.query}`, logError.message);
             }
           }
-        } catch (err) {
+        }
+        catch (err) {
           console.error(`Failed to collect logs for DB ${db.dbName}:`, err.message);
         } finally {
           await client.end();
@@ -301,7 +289,7 @@ LIMIT 200;
  */
 async function testEmailAlert() {
   console.log("Testing email alert...");
-  
+
   try {
     const testQueries = [
       {
@@ -321,13 +309,13 @@ async function testEmailAlert() {
         collectedAt: new Date()
       }
     ];
-    
+
     const dbInfo = {
       host: "test-database.example.com",
       dbName: "test_db",
       username: "test_user"
     };
-    
+
     await sendQueryAlert(testQueries, dbInfo, HARDCODED_EMAIL);
     console.log(`✅ Test email alert sent to ${HARDCODED_EMAIL}`);
   } catch (error) {
@@ -354,8 +342,7 @@ function startCron() {
   
   // Regular collection for all queries
   cron.schedule("*/5 * * * *", collectLogs);
-  console.log("✅ Query log collection cron started (every 5 minutes)");
-  
+
   // Alert-specific collection (run more frequently)
   cron.schedule("*/2 * * * *", collectAlertQueries);
   console.log("✅ Alert query collection cron started (every 2 minutes)");
@@ -372,9 +359,9 @@ function startCron() {
 }
 
 // Export functions
-module.exports = { 
-  startCron, 
-  collectLogs, 
+module.exports = {
+  startCron,
+  collectLogs,
   collectAlertQueries,
   testEmailAlert,
   runAllCronJobs

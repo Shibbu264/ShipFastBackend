@@ -1,15 +1,34 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+let GoogleGenerativeAI;
+let client;
 
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  throw new Error("GEMINI_API_KEY is not set in environment.");
+// Initialize the Google Generative AI client
+async function initializeGemini() {
+  if (!client) {
+    const { GoogleGenerativeAI: GAI } = await import("@google/generative-ai");
+    GoogleGenerativeAI = GAI;
+    
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not set in environment.");
+    }
+    
+    client = new GoogleGenerativeAI(apiKey);
+  }
+  return client;
 }
-
-const client = new GoogleGenerativeAI(apiKey);
 
 class GeminiService {
   constructor() {
-    this.client = client;
+    this.client = null;
+  }
+
+  /**
+   * Initialize the client if not already done
+   */
+  async ensureInitialized() {
+    if (!this.client) {
+      this.client = await initializeGemini();
+    }
   }
 
   /**
@@ -17,7 +36,8 @@ class GeminiService {
    * @param {string} model - Model name (default: "gemini-2.5-pro")
    * @returns {GenerativeModel}
    */
-  getModel(model = "gemini-2.5-pro") {
+  async getModel(model = "gemini-2.5-pro") {
+    await this.ensureInitialized();
     return this.client.getGenerativeModel({ model });
   }
 
@@ -32,7 +52,7 @@ class GeminiService {
    */
   async _generateResponse({ prompt, system, history = [], model }) {
     try {
-      const m = this.getModel(model);
+      const m = await this.getModel(model);
       
       const requestData = {
         systemInstruction: system,
@@ -62,7 +82,7 @@ class GeminiService {
    */
   async* streamTextChunks({ prompt, system, history = [], model }) {
     try {
-      const m = this.getModel(model);
+      const m = await this.getModel(model);
       
       const requestData = {
         systemInstruction: system,

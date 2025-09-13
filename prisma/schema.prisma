@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider     = "postgresql"
   url          = env("DATABASE_URL")
+  directUrl    = env("DIRECT_URL")
   relationMode = "prisma"
 }
 
@@ -42,11 +43,35 @@ model QueryLog {
   calls         Int      @default(0)
   totalTimeMs   Float    @default(0)
   meanTimeMs    Float    @default(0)
+  minTimeMs     Float    @default(0)
+  maxTimeMs     Float    @default(0)
+  planningTime  Float    @default(0)   // Time spent planning the query
+  executionTime Float    @default(0)   // Time spent executing the query
+
   rowsReturned  Int      @default(0)
-  collectedAt   DateTime @default(now())
-  alertsEnabled Boolean  @default(false)
-  userDb        UserDB   @relation(fields: [userDbId], references: [id])
+
+  // I/O metrics
+  sharedBlksHit      Int    @default(0)
+  sharedBlksRead     Int    @default(0)
+  sharedBlksWritten  Int    @default(0)
+  localBlksHit       Int    @default(0)
+  localBlksRead      Int    @default(0)
+  localBlksWritten   Int    @default(0)
+  tempBlksRead       Int    @default(0)
+  tempBlksWritten    Int    @default(0)
+  blkReadTime        Float  @default(0)
+  blkWriteTime       Float  @default(0)
+
+  // Query classification
+  queryType      String   @default("OTHER")
+  firstTable     String?  // Extracted first table name if available
+
+  collectedAt    DateTime @default(now())
+  alertsEnabled  Boolean  @default(false)
+
+  userDb         UserDB   @relation(fields: [userDbId], references: [id])
 }
+
 
 model TableUsage {
   id        String   @id @default(uuid())

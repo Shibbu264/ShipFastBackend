@@ -19,5 +19,5 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use("/ai", aiRoutes);
 app.use("/db", dbRoutes);
-app.use("/api/alerts", alertRoutes);
+app.use("/alerts", alertRoutes);
 module.exports = app;

@@ -8,25 +8,23 @@ const { hashQuery } = require("../utils/encryption");
  * 
  * Request body: {
  *   queryId: string,  // ID of the existing query to enable alerts for
- *   query: string,    // Optional: Full query text (required if creating new)
- *   userDbId: string  // Optional: Database ID (required if creating new)
+ *   query: string     // Optional: Full query text (required if creating new)
  * }
+ * 
+ * Note: Uses authenticated user's username to find their database connection
  */
 async function enableQueryAlert(req, res) {
   try {
-    const { queryId, query, userDbId } = req.body;
+    const {username} = req.user;
+    const { queryId, query } = req.body;
     
     if (!queryId && !query) {
       return res.status(400).json({ error: "Either queryId or query text is required" });
     }
     
-    if (!userDbId) {
-      return res.status(400).json({ error: "userDbId is required when not authenticated" });
-    }
-    
-    // Use the userDbId from the request body instead of req.user
+    // Use the username from the authenticated user to find the database connection
     const userDb = await prisma.userDB.findUnique({
-      where: { id: userDbId },
+      where: { username: username },
     });
 
     if (!userDb) {
@@ -118,6 +116,66 @@ async function enableQueryAlert(req, res) {
   }
 }
 
+/**
+ * GET /query-with-alerts
+ * Returns all queries with alerts enabled for the authenticated user
+ * 
+ * Returns: Array of query objects with alert information
+ */
+async function getQueriesWithAlerts(req, res) {
+  try {
+    const {username} = req.user;
+    
+    // Find the user's database connection
+    const userDb = await prisma.userDB.findUnique({
+      where: { username: username },
+    });
+
+    if (!userDb) {
+      return res.status(404).json({ error: "Database connection not found" });
+    }
+    
+    // Get all queries with alerts enabled for this user
+    const queriesWithAlerts = await prisma.queryLog.findMany({
+      where: {
+        userDbId: userDb.id,
+        alertsEnabled: true
+      },
+      select: {
+        id: true,
+        query: true,
+        meanTimeMs: true
+      },
+      orderBy: {
+        meanTimeMs: 'desc' // Order by slowest queries first
+      }
+    });
+    
+    // Transform the data to the required format
+    const formattedQueries = queriesWithAlerts.map(query => ({
+      id: query.id,
+      type: "Slow Query",
+      query: query.query,
+      severity: "medium",
+      threshold: "1000ms"
+    }));
+    
+    res.json({
+      success: true,
+      queries: formattedQueries,
+      count: formattedQueries.length
+    });
+    
+  } catch (error) {
+    console.error("Error fetching queries with alerts:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch queries with alerts", 
+      details: error.message 
+    });
+  }
+}
+
 module.exports = {
-  enableQueryAlert
+  enableQueryAlert,
+  getQueriesWithAlerts
 };

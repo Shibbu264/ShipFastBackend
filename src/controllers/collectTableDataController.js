@@ -2,7 +2,6 @@ const cron = require("node-cron");
 const prisma = require("../config/db");
 const { decrypt } = require("../utils/encryption");
 const { Client } = require("pg");
-const { v4: uuidv4 } = require("uuid");
 
 /**
  * Collects table structure data for all connected databases (LOGGING ONLY)
@@ -73,6 +72,7 @@ async function collectTableDataForDatabase(userDb) {
         const tableData = await getTableStructure(client, table.table_name);
 
         // Store table structure data in database
+        const { v4: uuidv4 } = await import("uuid");
         await prisma.tableStructure.upsert({
           where: {
             userDbId_schemaName_tableName: {
