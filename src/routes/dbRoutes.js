@@ -15,6 +15,6 @@ router.post("/connect-db", connectDatabase);
 router.get("/query-logs", authenticateJWT, getQueryLogs);
 router.get("/dashboard-data", authenticateJWT, getDashboardData);
 router.post("/top-k-slow-queries", authenticateJWT, topKSlowQueries);
-router.post("/test-collect-logs", runAllCronJobs);
+router.post("/runAllCronJobs", runAllCronJobs);
 
 module.exports = router;
