@@ -6,6 +6,7 @@ const {
   runAllCronJobs,
   getDashboardData,
   topKSlowQueries,
+  getAllQueries,
   analyzeQueries,
   generateSuggestions,
 } = require("../controllers/dbController");
@@ -17,6 +18,7 @@ router.post("/connect-db", connectDatabase);
 router.get("/query-logs", authenticateJWT, getQueryLogs);
 router.get("/metric-data", authenticateJWT, getDashboardData);
 router.post("/top-k-slow-queries", authenticateJWT, topKSlowQueries);
+router.get("/get-all-queries", authenticateJWT, getAllQueries);
 router.get("/get-insights", authenticateJWT, analyzeQueries);
 router.post("/generate-suggestions", generateSuggestions);
 router.post("/runAllCronJobs", runAllCronJobs);
