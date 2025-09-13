@@ -214,32 +214,26 @@ async function collectLogs() {
         try {
           await client.connect();
           const { rows } = await client.query(`
-WITH user_schemas AS (
-    SELECT nspname
-    FROM pg_namespace
-    WHERE nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
-      AND nspname NOT LIKE 'pg_temp%'
-      AND nspname NOT LIKE 'pg_toast_temp%'
-)
-SELECT s.query, s.calls, s.total_exec_time, s.mean_exec_time, s.rows
-FROM pg_stat_statements s
-WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
-  -- Remove common non-user queries
-  AND s.query NOT ILIKE 'SET%'
-  AND s.query NOT ILIKE 'SHOW%'
-  AND s.query NOT ILIKE 'BEGIN%'
-  AND s.query NOT ILIKE 'COMMIT%'
-  AND s.query NOT ILIKE 'ROLLBACK%'
-  AND s.query NOT ILIKE 'DISCARD%'
-  AND s.query NOT ILIKE 'DEALLOCATE%'
-  -- Exclude queries on system schemas
-  AND NOT EXISTS (
-    SELECT 1
-    FROM user_schemas us
-    WHERE s.query ILIKE '%' || us.nspname || '%'
-  )
-ORDER BY s.total_exec_time DESC
-LIMIT 50;
+SELECT query, calls, total_exec_time, mean_exec_time, rows
+FROM pg_stat_statements
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+  -- Exclude pgbouncer/system/internal queries
+  AND query NOT ILIKE 'SELECT * FROM pgbouncer%'
+  AND query NOT ILIKE '%pg_catalog%'
+  AND query NOT ILIKE '%information_schema%'
+  AND query NOT ILIKE 'SET %'
+  AND query NOT ILIKE 'SHOW %'
+  AND query NOT ILIKE 'BEGIN%'
+  AND query NOT ILIKE 'COMMIT%'
+  AND query NOT ILIKE 'ROLLBACK%'
+  AND query NOT ILIKE 'DEALLOCATE%'
+  AND query NOT ILIKE 'DISCARD%'
+  AND query NOT ILIKE 'FETCH %'
+  AND query NOT ILIKE 'CLOSE %'
+  AND query NOT ILIKE 'ANALYZE%'
+  AND query NOT ILIKE 'VACUUM%'
+ORDER BY total_exec_time DESC
+LIMIT 200;
           `);
 
           for (const row of rows) {
