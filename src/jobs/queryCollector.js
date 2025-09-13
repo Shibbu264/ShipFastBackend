@@ -1,6 +1,6 @@
 const cron = require("node-cron");
 const prisma = require("../config/db");
-const { decrypt } = require("../utils/encryption");
+const { decrypt, hashQuery } = require("../utils/encryption");
 const { Client } = require("pg");
 const { sendQueryAlert } = require("../services/emailService");
 
@@ -35,7 +35,7 @@ async function collectAlertQueries() {
         alertsEnabled: true
       },
       include: {
-        userDB: true // Include the related database info
+        userDb: true // Include the related database info
       }
     });
     
@@ -49,7 +49,7 @@ async function collectAlertQueries() {
       if (!queriesByDb[query.userDbId]) {
         queriesByDb[query.userDbId] = {
           queries: [],
-          db: query.userDB
+          db: query.userDb
         };
       }
       queriesByDb[query.userDbId].queries.push(query);
@@ -214,11 +214,26 @@ async function collectLogs() {
         try {
           await client.connect();
           const { rows } = await client.query(`
-            SELECT query, calls, total_exec_time, mean_exec_time, rows
-            FROM pg_stat_statements
-            WHERE dbid = (SELECT oid FROM pg_database WHERE datname = 'postgres')
-            ORDER BY total_exec_time DESC
-            LIMIT 50;
+SELECT query, calls, total_exec_time, mean_exec_time, rows
+FROM pg_stat_statements
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+  -- Exclude pgbouncer/system/internal queries
+  AND query NOT ILIKE 'SELECT * FROM pgbouncer%'
+  AND query NOT ILIKE '%pg_catalog%'
+  AND query NOT ILIKE '%information_schema%'
+  AND query NOT ILIKE 'SET %'
+  AND query NOT ILIKE 'SHOW %'
+  AND query NOT ILIKE 'BEGIN%'
+  AND query NOT ILIKE 'COMMIT%'
+  AND query NOT ILIKE 'ROLLBACK%'
+  AND query NOT ILIKE 'DEALLOCATE%'
+  AND query NOT ILIKE 'DISCARD%'
+  AND query NOT ILIKE 'FETCH %'
+  AND query NOT ILIKE 'CLOSE %'
+  AND query NOT ILIKE 'ANALYZE%'
+  AND query NOT ILIKE 'VACUUM%'
+ORDER BY total_exec_time DESC
+LIMIT 200;
           `);
 
           for (const row of rows) {
@@ -261,6 +276,7 @@ async function collectLogs() {
                   data: {
                     userDbId: db.id,
                     query: row.query || '',
+                    queryHash: hashQuery(row.query || ''),
                     calls: parseInt(row.calls) || 0,
                     totalTimeMs: parseFloat(row.total_exec_time) || 0,
                     meanTimeMs: parseFloat(row.mean_exec_time) || 0,
