@@ -5,7 +5,7 @@ let prisma;
 
 try {
   prisma = new PrismaClient({
-    log: ['query', 'info', 'warn', 'error'],
+    log: ['error', 'warn'] ,
   });
   
   // Test the connection
