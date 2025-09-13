@@ -229,8 +229,6 @@ async function collectLogs() {
     local_blks_written,
     temp_blks_read,
     temp_blks_written,
-    blk_read_time,
-    blk_write_time,
     -- Extract query type (SELECT/INSERT/UPDATE/DELETE)
     CASE
       WHEN query ILIKE 'select%' THEN 'SELECT'
@@ -262,12 +260,14 @@ WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
   AND query NOT ILIKE 'ANALYZE%'
   AND query NOT ILIKE 'VACUUM%'
 ORDER BY total_exec_time DESC
-LIMIT 200;
+LIMIT 50;
 `);
 
           for (const row of rows) {
+            console.log(row)
             try {
               const data = {
+                queryHash: hashQuery(row.query || ''),
                 calls: parseInt(row.calls) || 0,
                 totalTimeMs: parseFloat(row.total_exec_time) || 0,
                 meanTimeMs: parseFloat(row.mean_exec_time) || 0,
@@ -294,7 +294,7 @@ LIMIT 200;
 
               // Check if record exists
               const existingRecord = await prisma.queryLog.findFirst({
-                where: { userDbId: db.id, query: row.query || '' }
+                where: { userDbId: db.id, queryHash: hashQuery(row.query || '') }
               });
 
               if (existingRecord) {
@@ -307,7 +307,6 @@ LIMIT 200;
                   data: {
                     userDbId: db.id,
                     query: row.query || '',
-                    queryHash: hashQuery(row.query || ''),
                     ...data
                   }
                 });
