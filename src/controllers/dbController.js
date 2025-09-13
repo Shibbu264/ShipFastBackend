@@ -177,11 +177,11 @@ async function topKSlowQueries(req, res) {
     return res.status(404).json({ error: "Database connection not found" });
   }
 
-  // Get k parameter from request body
-  const { k } = req.body;
+  // Get k parameter from request body, default to 10 if not provided
+  const { k = 10 } = req.body;
 
   // Validate k parameter
-  if (!k || typeof k !== "number" || k <= 0) {
+  if (typeof k !== "number" || k <= 0) {
     return res
       .status(400)
       .json({ error: "Invalid k parameter. Must be a positive number." });
@@ -194,10 +194,27 @@ async function topKSlowQueries(req, res) {
     take: k,
   });
 
+  // Transform logs to the required format
+  const formattedLogs = logs.map((log, index) => {
+    // Determine severity based on meanTimeMs
+    let severity = "low";
+    if (log.meanTimeMs > 1000) {
+      severity = "high";
+    } else if (log.meanTimeMs > 500) {
+      severity = "medium";
+    }
+
+    return {
+      id: log.id, 
+      query: log.query,
+      avgTime: Math.round(log.meanTimeMs), 
+      frequency: log.calls,
+      severity: severity,
+    };
+  });
+
   res.json({
-    topKSlowQueries: logs,
-    count: logs.length,
-    requestedK: k,
+    logs: formattedLogs,
   });
 }
 
@@ -221,12 +238,12 @@ async function getDashboardData(req, res) {
   const totalTimeMs = logs.reduce((sum, log) => sum + log.totalTimeMs, 0);
   const avgLatencyMs = totalCalls > 0 ? totalTimeMs / totalCalls : 0;
 
-  // Count slow queries (>500ms mean time)
+  // Count slow queries (>500ms mean time) - matching the severity logic from topKSlowQueries
   const slowQueries = logs.filter((log) => log.meanTimeMs > 1000).length;
 
   res.json({
     totalQueries,
-    avgLatencyMs: Math.round(avgLatencyMs * 100) / 100, // Round to 2 decimal places
+    avgLatency: Math.round(avgLatencyMs), // Round to nearest integer
     slowQueries,
   });
 }
