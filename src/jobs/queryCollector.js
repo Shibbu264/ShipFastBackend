@@ -242,10 +242,11 @@ async function collectLogs() {
       ELSE 'OTHER'
     END AS query_type,
     -- Extract first table name if present (basic regex parsing)
-    REGEXP_REPLACE(
-        REGEXP_REPLACE(query, '.*FROM\\s+([a-zA-Z0-9_\\.]+).*', '\\1'),
-        ';.*', ''
-    ) AS first_table
+REGEXP_REPLACE(
+        query,
+        '(?is).*?\\bFROM\\s+([a-zA-Z0-9_\\."]+)',
+        '\\1'
+    ) AS first_table AS first_table
 FROM pg_stat_statements
 WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
   -- Exclude system/internal queries

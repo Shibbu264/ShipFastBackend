@@ -94,7 +94,22 @@ class CacheService {
       const queryLogs = await prisma.queryLog.findMany({
         where: { userDbId: userDb.id },
         orderBy: { meanTimeMs: "desc" },
-        take: 20 // Get top 20 slowest queries
+        take: 20, // Get top 20 slowest queries
+        select: {
+          id: true,
+          userDbId: true,
+          query: true,
+          queryHash: true,
+          calls: true,
+          totalTimeMs: true,
+          meanTimeMs: true,
+          minTimeMs: true,
+          maxTimeMs: true,
+          rowsReturned: true,
+          sharedBlksHit: true,
+          sharedBlksRead: true,
+          sharedBlksWritten: true
+        }
       });
 
       // Get table structures
