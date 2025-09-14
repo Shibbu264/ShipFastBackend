@@ -1,6 +1,7 @@
 const prisma = require("../config/db");
 const gemini = require("../config/gemini");
 const { runSuggestionAnalysis } = require("../jobs/suggestionAnalyzer");
+const { categorizeQueryPerformance, getSeverityLevel } = require("../utils/queryCategorizer");
 
 // Debug: Check if prisma is properly loaded
 console.log("Prisma client loaded:", !!prisma);
@@ -211,13 +212,8 @@ async function topKSlowQueries(req, res) {
 
   // Transform logs to the required format
   const formattedLogs = logs.map((log, index) => {
-    // Determine severity based on meanTimeMs
-    let severity = "low";
-    if (log.meanTimeMs > 500) {
-      severity = "high";
-    } else if (log.meanTimeMs > 300) {
-      severity = "medium";
-    }
+      // Use centralized severity calculation
+      const severity = getSeverityLevel(log.meanTimeMs);
 
     return {
       id: log.id,
@@ -316,13 +312,8 @@ async function getAllQueries(req, res) {
 
     // Transform logs to the required format (same as topKSlowQueries)
     const formattedLogs = logs.map((log, index) => {
-      // Determine severity based on meanTimeMs
-      let severity = "low";
-      if (log.meanTimeMs > 500) {
-        severity = "high";
-      } else if (log.meanTimeMs > 500) {
-        severity = "medium";
-      }
+      // Use centralized severity calculation
+      const severity = getSeverityLevel(log.meanTimeMs);
 
       return {
         id: log.id, // Use actual database ID

@@ -1,5 +1,6 @@
 const prisma = require("../config/db");
 const { hashQuery } = require("../utils/encryption");
+const { categorizeQueryPerformance, getSeverityLevel } = require("../utils/queryCategorizer");
 
 /**
  * POST /alert-query
@@ -152,13 +153,20 @@ async function getQueriesWithAlerts(req, res) {
     });
     
     // Transform the data to the required format
-    const formattedQueries = queriesWithAlerts.map(query => ({
-      id: query.id,
-      type: "Slow Query",
-      query: query.query,
-      severity: "medium",
-      threshold: "500ms"
-    }));
+    const formattedQueries = queriesWithAlerts.map(query => {
+      // Use the centralized query categorization function
+      const queryType = categorizeQueryPerformance(query.meanTimeMs);
+      const severity = getSeverityLevel(query.meanTimeMs);
+      
+      return {
+        id: query.id,
+        type: queryType,
+        query: query.query,
+        severity: severity,
+        threshold: query.meanTimeMs > 500 ? "> 500ms" : 
+                  query.meanTimeMs > 300 ? "> 300ms" : "≤ 300ms"
+      };
+    });
     
     res.json({
       success: true,
