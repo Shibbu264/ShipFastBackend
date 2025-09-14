@@ -297,7 +297,7 @@ Focus on:
 4. WHERE clause optimizations
 5. Specific, actionable recommendations
 
-For multiplierImprovement: Provide a realistic performance improvement multiplier (e.g., 1.3 = 30% faster, 1.5 = 50% faster, 2.0 = 100% faster). Base this on the optimizations made.
+For multiplierImprovement: Provide a realistic performance improvement multiplier (e.g., 1.3 = 30% faster, 1.5 = 50% faster, 2.0 = 100% faster). number should be between 1 and 5.
 
 Be specific about table names, column names, and provide exact SQL statements.`;
 
