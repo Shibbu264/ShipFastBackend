@@ -285,7 +285,8 @@ Return your response as a JSON object with this exact structure:
   ],
   "optimizedQuery": {
     "description": "Description of optimizations made",
-    "sqlStatement": "Optimized SQL query"
+    "sqlStatement": "Optimized SQL query",
+    "multiplierImprovement": 1.5
   }
 }
 
@@ -295,6 +296,8 @@ Focus on:
 3. Join order improvements
 4. WHERE clause optimizations
 5. Specific, actionable recommendations
+
+For multiplierImprovement: Provide a realistic performance improvement multiplier (e.g., 1.3 = 30% faster, 1.5 = 50% faster, 2.0 = 100% faster). Base this on the optimizations made.
 
 Be specific about table names, column names, and provide exact SQL statements.`;
 
