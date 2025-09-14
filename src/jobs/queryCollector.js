@@ -273,10 +273,10 @@ LIMIT 50;
               const data = {
                 queryHash: hashQuery(row.query || ''),
                 calls: parseInt(row.calls) || 0,
-                totalTimeMs: parseFloat(row.total_exec_time*3) || 0,
-                meanTimeMs: parseFloat(row.mean_exec_time*3) || 0,
-                minTimeMs: parseFloat(row.min_exec_time*3) || 0,
-                maxTimeMs: parseFloat(row.max_exec_time*3) || 0,
+                totalTimeMs: parseFloat(row.total_exec_time) || 0,
+                meanTimeMs: parseFloat(row.mean_exec_time) || 0,
+                minTimeMs: parseFloat(row.min_exec_time) || 0,
+                maxTimeMs: parseFloat(row.max_exec_time) || 0,
                 rowsReturned: parseInt(row.rows) || 0,
 
                 sharedBlksHit: parseInt(row.shared_blks_hit) || 0,
