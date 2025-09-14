@@ -19,8 +19,8 @@ function decrypt(hash) {
   return decrypted.toString();
 }
 
-function hashQuery(query) {
-  return crypto.createHash('sha256').update(query || '').digest('hex');
+function hashQuery(query, userDbId = '') {
+  return crypto.createHash('sha256').update((query || '') + userDbId).digest('hex');
 }
 
 module.exports = { encrypt, decrypt, hashQuery };

@@ -242,17 +242,16 @@ async function collectLogs() {
       ELSE 'OTHER'
     END AS query_type,
     -- Extract first table name if present (basic regex parsing)
-REGEXP_REPLACE(
+    REGEXP_REPLACE(
         query,
-        '(?is).*?\\bFROM\\s+([a-zA-Z0-9_\\."]+)',
+        '(?is).*?\bFROM\s+([a-zA-Z0-9_\."]+).*',
         '\\1'
-    ) AS first_table AS first_table
+    ) AS first_table
 FROM pg_stat_statements
 WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
-  -- Exclude system/internal queries
-  AND query NOT ILIKE 'SELECT * FROM pgbouncer%'
-  AND query NOT ILIKE '%pg_catalog%'
-  AND query NOT ILIKE '%information_schema%'
+  -- Exclude system/internal queries using regex
+  AND query !~* '(pg_catalog|information_schema|pg_class|pg_namespace|pg_type|pg_attribute|pg_constraint|pg_index|pg_roles|pg_get_tabledef|pg_get_viewdef|pg_is_other_temp_schema)'
+  -- Exclude utility commands
   AND query NOT ILIKE 'SET %'
   AND query NOT ILIKE 'CREATE %'
   AND query NOT ILIKE 'SHOW %'
@@ -272,7 +271,7 @@ LIMIT 50;
           for (const row of rows) {
             try {
               const data = {
-                queryHash: hashQuery(row.query || ''),
+                queryHash: hashQuery(row.query || '', db.id),
                 calls: parseInt(row.calls) || 0,
                 totalTimeMs: parseFloat(row.total_exec_time) || 0,
                 meanTimeMs: parseFloat(row.mean_exec_time) || 0,
@@ -299,7 +298,7 @@ LIMIT 50;
 
               // Check if record exists
               const existingRecord = await prisma.queryLog.findFirst({
-                where: { userDbId: db.id, queryHash: hashQuery(row.query || '') }
+                where: { userDbId: db.id, queryHash: hashQuery(row.query || '', db.id) }
               });
 
               if (existingRecord) {

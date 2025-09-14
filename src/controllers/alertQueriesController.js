@@ -61,7 +61,7 @@ async function enableQueryAlert(req, res) {
           data: {
             userDbId: userDb.id,
             query: query,
-            queryHash: hashQuery(query),
+            queryHash: hashQuery(query, userDb.id),
             calls: 0,
             totalTimeMs: 0,
             meanTimeMs: 0,
@@ -84,7 +84,7 @@ async function enableQueryAlert(req, res) {
         data: {
           userDbId: userDb.id,
           query: query,
-          queryHash: hashQuery(query),
+          queryHash: hashQuery(query, userDb.id),
           calls: 0,
           totalTimeMs: 0,
           meanTimeMs: 0,
