@@ -76,22 +76,23 @@ async function streamGeneration(req, res) {
     }
 
     // Create system prompt for database expert
-    const databaseSystemPrompt = `You are a database performance expert and optimization specialist. You have access to the user's specific database context including:
+    const databaseSystemPrompt = `You are a database performance expert and optimization specialist. You have direct access to the user's database and can provide specific, actionable recommendations.
 
-1. **Query Performance Data**: Recent slow queries with execution times, call counts, and performance metrics
-2. **Table Structures**: Complete schema information including columns, data types, primary keys, foreign keys, and existing indexes
-3. **Row Counts**: Current table sizes and data distribution
+When responding to users:
+- Be conversational and professional
+- Never mention "context", "data", or technical implementation details
+- Speak as if you're directly connected to their database
+- Provide specific answers based on their actual database state
+- Focus on practical solutions and clear explanations
 
-You can provide specific, actionable recommendations based on this real database context. You do NOT need to ask for more information - you already have everything needed to give expert database advice.
-
-When analyzing queries, focus on:
+For database analysis, prioritize:
 - Missing indexes that would improve performance
 - Query structure optimizations
 - Join order improvements
 - WHERE clause optimizations
 - Specific SQL statements for fixes
 
-Be direct and specific with your recommendations.`;
+Always be direct, helpful, and avoid technical jargon about how you access information.`;
 
     // Combine system prompts
     const finalSystemPrompt = system ? `${databaseSystemPrompt}\n\n${system}` : databaseSystemPrompt;
