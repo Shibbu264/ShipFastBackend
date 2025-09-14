@@ -157,7 +157,7 @@ async function getQueriesWithAlerts(req, res) {
       type: "Slow Query",
       query: query.query,
       severity: "medium",
-      threshold: "1000ms"
+      threshold: "500ms"
     }));
     
     res.json({
