@@ -8,8 +8,7 @@ const { categorizeQueryPerformance, getSeverityLevel } = require("../utils/query
  * If query doesn't exist, creates it with alertsEnabled=true
  * 
  * Request body: {
- *   queryId: string,  // ID of the existing query to enable alerts for
- *   query: string     // Optional: Full query text (required if creating new)
+ *   query: string     // Full query text (required)
  * }
  * 
  * Note: Uses authenticated user's username to find their database connection
@@ -17,10 +16,11 @@ const { categorizeQueryPerformance, getSeverityLevel } = require("../utils/query
 async function enableQueryAlert(req, res) {
   try {
     const {username} = req.user;
-    const { queryId, query } = req.body;
+    const { query } = req.body;
+    console.log("query", query);
     
-    if (!queryId && !query) {
-      return res.status(400).json({ error: "Either queryId or query text is required" });
+    if (!query) {
+      return res.status(400).json({ error: "Query text is required" });
     }
     
     // Use the username from the authenticated user to find the database connection
@@ -32,59 +32,35 @@ async function enableQueryAlert(req, res) {
       return res.status(404).json({ error: "Database connection not found" });
     }
     
-    let updatedQuery;
+    // Generate query hash for the provided query
+    const queryHash = hashQuery(query, userDb.id);
     
-    // If queryId is provided, try to find existing query
-    if (queryId) {
-      // Find the query to make sure it exists and belongs to this user
-      const existingQuery = await prisma.queryLog.findUnique({
-        where: { id: queryId },
+    // Search for existing query by queryHash
+    const existingQuery = await prisma.queryLog.findFirst({
+      where: { 
+        queryHash: queryHash,
+        userDbId: userDb.id
+      },
+    });
+    
+    let updatedQuery;
+    let isNewlyCreated = false;
+    
+    if (existingQuery) {
+      // Query exists, update it to enable alerts
+      console.log("Existing query found by queryHash. Updating alertsEnabled=true");
+      updatedQuery = await prisma.queryLog.update({
+        where: { id: existingQuery.id },
+        data: { alertsEnabled: true }
       });
-      
-      if (existingQuery) {
-        // Verify the query belongs to this user's database
-        if (existingQuery.userDbId !== userDb.id) {
-          return res.status(403).json({ error: "You don't have permission to modify this query" });
-        }
-        
-        // Update the query to enable alerts
-        updatedQuery = await prisma.queryLog.update({
-          where: { id: queryId },
-          data: { alertsEnabled: true }
-        });
-      } else if (query) {
-        // Query not found by ID but query text is provided - create new
-        console.log("Query not found by ID. Creating new query with alertsEnabled=true");
-        
-        // Create a new query with alertsEnabled=true
-        updatedQuery = await prisma.queryLog.create({
-          data: {
-            userDbId: userDb.id,
-            query: query,
-            queryHash: hashQuery(query, userDb.id),
-            calls: 0,
-            totalTimeMs: 0,
-            meanTimeMs: 0,
-            rowsReturned: 0,
-            alertsEnabled: true,
-            collectedAt: new Date()
-          }
-        });
-      } else {
-        return res.status(404).json({ error: "Query not found and no query text provided for creation" });
-      }
     } else {
-      // No queryId provided, create new query from query text
-      if (!query) {
-        return res.status(400).json({ error: "Query text is required when not providing queryId" });
-      }
-      
-      // Create a new query with alertsEnabled=true
+      // Query doesn't exist, create new one with alertsEnabled=true
+      console.log("Query not found by queryHash. Creating new query with alertsEnabled=true");
       updatedQuery = await prisma.queryLog.create({
         data: {
           userDbId: userDb.id,
           query: query,
-          queryHash: hashQuery(query, userDb.id),
+          queryHash: queryHash,
           calls: 0,
           totalTimeMs: 0,
           meanTimeMs: 0,
@@ -93,18 +69,19 @@ async function enableQueryAlert(req, res) {
           collectedAt: new Date()
         }
       });
+      isNewlyCreated = true;
     }
     
     // Return success with updated query data
     res.json({
       success: true,
-      message: queryId ? "Alert enabled for query successfully" : "New query created with alerts enabled",
+      message: isNewlyCreated ? "New query created with alerts enabled" : "Alert enabled for query successfully",
       query: {
         id: updatedQuery.id,
         query: updatedQuery.query.substring(0, 100) + (updatedQuery.query.length > 100 ? '...' : ''),
         alertsEnabled: updatedQuery.alertsEnabled,
         meanTimeMs: updatedQuery.meanTimeMs,
-        isNewlyCreated: !queryId || (queryId && !await prisma.queryLog.findUnique({ where: { id: queryId } }))
+        isNewlyCreated: isNewlyCreated
       }
     });
     

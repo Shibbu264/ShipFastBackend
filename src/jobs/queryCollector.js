@@ -171,9 +171,9 @@ async function collectAlertQueries() {
                 username: db.username
               };
 
-              await sendQueryAlert(criticalQueries, dbInfo, HARDCODED_EMAIL);
+              await sendQueryAlert(criticalQueries, dbInfo, 'geektechnologies133@gmail.com');
 
-              console.log(`✅ Alert email sent to ${HARDCODED_EMAIL} for ${criticalQueries.length} critical queries in database ${db.dbName}`);
+              console.log(`✅ Alert email sent to ${'geektechnologies133@gmail.com'} for ${criticalQueries.length} critical queries in database ${db.dbName}`);
             } catch (emailError) {
               console.error(`Failed to send alert email: ${emailError.message}`, emailError);
             }

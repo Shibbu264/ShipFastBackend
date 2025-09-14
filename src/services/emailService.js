@@ -37,7 +37,7 @@ async function sendEmail({ to, subject, text, html }) {
   try {
     const info = await transporter.sendMail({
       from: `"ShipFast DB Monitor" <${SENDER_EMAIL}>`,
-      to: HARDCODED_EMAIL,
+      to: to,
       subject,
       text,
       html,
@@ -212,7 +212,7 @@ async function sendQueryAlert(criticalQueries, dbInfo, userEmail) {
   const text = formatCriticalQueriesText(criticalQueries, dbInfo);
   
   return sendEmail({
-    to: HARDCODED_EMAIL, // This will be overridden in sendEmail anyway
+    to: userEmail, // This will be overridden in sendEmail anyway
     subject,
     text,
     html
