@@ -215,7 +215,7 @@ async function topKSlowQueries(req, res) {
     let severity = "low";
     if (log.meanTimeMs > 500) {
       severity = "high";
-    } else if (log.meanTimeMs > 500) {
+    } else if (log.meanTimeMs > 300) {
       severity = "medium";
     }
 
