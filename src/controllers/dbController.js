@@ -213,7 +213,7 @@ async function topKSlowQueries(req, res) {
   const formattedLogs = logs.map((log, index) => {
     // Determine severity based on meanTimeMs
     let severity = "low";
-    if (log.meanTimeMs > 1000) {
+    if (log.meanTimeMs > 500) {
       severity = "high";
     } else if (log.meanTimeMs > 500) {
       severity = "medium";
@@ -254,7 +254,7 @@ async function getDashboardData(req, res) {
   const avgLatencyMs = totalCalls > 0 ? totalTimeMs / totalCalls : 0;
 
   // Count slow queries (>500ms mean time) - matching the severity logic from topKSlowQueries
-  const slowQueries = logs.filter((log) => log.meanTimeMs > 1000).length;
+  const slowQueries = logs.filter((log) => log.meanTimeMs > 500).length;
 
   res.json({
     totalQueries,
@@ -318,7 +318,7 @@ async function getAllQueries(req, res) {
     const formattedLogs = logs.map((log, index) => {
       // Determine severity based on meanTimeMs
       let severity = "low";
-      if (log.meanTimeMs > 1000) {
+      if (log.meanTimeMs > 500) {
         severity = "high";
       } else if (log.meanTimeMs > 500) {
         severity = "medium";
@@ -421,6 +421,146 @@ async function testTableDataCollectionEndpoint(req, res) {
   }
 }
 
+/**
+ * Format query log data for user-friendly display
+ */
+function formatQueryForUser(queryLog) {
+  const severity = queryLog.meanTimeMs > 500 ? 'Critical' : 
+                  queryLog.meanTimeMs > 300 ? 'Warning' : 'Healthy';
+  
+  
+  return {
+    // Basic Info
+    queryId: queryLog.id,
+    queryPreview: queryLog.query.substring(0, 150) + (queryLog.query.length > 150 ? '...' : ''),
+    fullQuery: queryLog.query,
+    
+    // Performance Summary
+    performance: {
+      averageTime: `${Math.round(queryLog.meanTimeMs)}ms`,
+      frequency: `${queryLog.calls} times`,
+      totalImpact: `${Math.round(queryLog.totalTimeMs / 1000)}s`,
+      severity: severity,
+      threshold: queryLog.meanTimeMs > 500 ? '> 500ms' : 
+                queryLog.meanTimeMs > 300 ? '> 300ms' : '≤ 300ms',
+      minTime: `${Math.round(queryLog.minTimeMs)}ms`,
+      maxTime: `${Math.round(queryLog.maxTimeMs)}ms`
+    },
+    
+    // Data Info
+    data: {
+      type: queryLog.queryType,
+      mainTable: queryLog.firstTable || 'Unknown',
+      rowsReturned: queryLog.rowsReturned,
+      collectedAt: queryLog.collectedAt
+    },
+    
+    // Health Status
+    health: getQueryHealthStatus(queryLog)
+  };
+}
+
+/**
+ * Get query health status based on performance metrics
+ */
+function getQueryHealthStatus(queryLog) {
+  const isCritical = queryLog.meanTimeMs > 500;
+  const isWarning = queryLog.meanTimeMs > 300;
+  const isFrequent = queryLog.calls > 100;
+  
+  if (isCritical && isFrequent) {
+    return {
+      status: 'Critical',
+      message: 'This query is very slow and runs frequently',
+      recommendation: 'Urgent: Optimize this query immediately',
+      priority: 'High'
+    };
+  } else if (isCritical) {
+    return {
+      status: 'High',
+      message: 'This query is very slow but not frequent',
+      recommendation: 'High priority: Consider optimizing this query',
+      priority: 'High'
+    };
+  } else if (isWarning) {
+    return {
+      status: 'Warning',
+      message: 'This query is moderately slow',
+      recommendation: 'Monitor this query and consider optimization',
+      priority: 'Medium'
+    };
+  } else {
+    return {
+      status: 'Healthy',
+      message: 'This query is performing well',
+      recommendation: 'No action needed',
+      priority: 'Low'
+    };
+  }
+}
+
+
+/**
+ * Get complete query log by query ID
+ * GET /db/query-log/:queryId
+ */
+async function getQueryLogById(req, res) {
+  try {
+    const { queryId } = req.params;
+    
+    if (!queryId) {
+      return res.status(400).json({
+        success: false,
+        error: "Query ID is required"
+      });
+    }
+
+    // Find the UserDB by username
+    const userDb = await prisma.userDB.findUnique({
+      where: { username: req.user.username },
+    });
+
+    if (!userDb) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Database connection not found" 
+      });
+    }
+
+    // Find the query log by ID and userDbId
+    const queryLog = await prisma.queryLog.findFirst({
+      where: { 
+        id: queryId,
+        userDbId: userDb.id 
+      }
+    });
+
+    if (!queryLog) {
+      return res.status(404).json({
+        success: false,
+        error: "Query not found or doesn't belong to your database"
+      });
+    }
+
+    // Format query data for user-friendly display
+    const userFriendlyData = formatQueryForUser(queryLog);
+    
+    // Return the user-friendly query details
+    res.json({
+      success: true,
+      data: userFriendlyData
+    });
+
+  } catch (error) {
+    console.error("Error in getQueryLogById:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get query log",
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   connectDatabase,
   getQueryLogs,
@@ -431,4 +571,5 @@ module.exports = {
   analyzeQueries,
   generateSuggestions,
   testTableDataCollectionEndpoint,
+  getQueryLogById,
 };

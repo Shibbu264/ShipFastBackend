@@ -80,8 +80,8 @@ function formatCriticalQueriesHtml(queries, dbInfo) {
   // Calculate severity for each query
   const queriesWithSeverity = queries.map(q => {
     let severity = 'Medium';
-    if (q.meanTimeMs > 1000) severity = 'High';
-    if (q.meanTimeMs > 5000) severity = 'Critical';
+    if (q.meanTimeMs > 500) severity = 'High';
+    if (q.meanTimeMs > 1000) severity = 'Critical';
     return {...q, severity};
   });
   
@@ -164,8 +164,8 @@ function formatCriticalQueriesText(queries, dbInfo) {
   // Calculate severity for each query
   const queriesWithSeverity = queries.map(q => {
     let severity = 'Medium';
-    if (q.meanTimeMs > 1000) severity = 'High';
-    if (q.meanTimeMs > 5000) severity = 'Critical';
+    if (q.meanTimeMs > 500) severity = 'High';
+    if (q.meanTimeMs > 1000) severity = 'Critical';
     return {...q, severity};
   });
   
