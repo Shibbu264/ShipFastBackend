@@ -4,6 +4,7 @@ const { decrypt, hashQuery } = require("../utils/encryption");
 const { Client } = require("pg");
 const { sendQueryAlert } = require("../services/emailService");
 const { collectTableData } = require("../controllers/collectTableDataController");
+const cacheService = require("../services/cacheService");
 
 // Configuration for critical query detection
 const CRITICAL_QUERY_THRESHOLD_MS = 500; // Critical if mean execution time > 500ms
@@ -139,6 +140,9 @@ async function collectAlertQueries() {
                 }
               });
 
+              // Invalidate cache for this database
+              await cacheService.invalidateDatabaseCache(db.id);
+
               // Record in TopSlowQuery table
               await prisma.topSlowQuery.create({
                 data: {
@@ -249,6 +253,7 @@ WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
   AND query NOT ILIKE '%pg_catalog%'
   AND query NOT ILIKE '%information_schema%'
   AND query NOT ILIKE 'SET %'
+  AND query NOT ILIKE 'CREATE %'
   AND query NOT ILIKE 'SHOW %'
   AND query NOT ILIKE 'BEGIN%'
   AND query NOT ILIKE 'COMMIT%'
@@ -264,7 +269,6 @@ LIMIT 50;
 `);
 
           for (const row of rows) {
-            console.log(row)
             try {
               const data = {
                 queryHash: hashQuery(row.query || ''),
@@ -311,6 +315,9 @@ LIMIT 50;
                   }
                 });
               }
+
+              // Invalidate cache for this database when data changes
+              await cacheService.invalidateDatabaseCache(db.id);
             } catch (logError) {
               console.error(`Failed to process query: ${row.query}`, logError.message);
             }

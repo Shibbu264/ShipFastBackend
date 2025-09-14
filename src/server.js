@@ -2,6 +2,7 @@ require("dotenv").config();
 const app = require("./app");
 const { startCron } = require("./jobs/queryCollector");
 const { startSuggestionCron } = require("./jobs/suggestionAnalyzer");
+const redisClient = require("./config/redis");
 
 const PORT = process.env.PORT || 5000;
 

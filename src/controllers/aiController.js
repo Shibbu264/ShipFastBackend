@@ -1,6 +1,7 @@
 const { streamTextChunks } = require("../services/gemini");
 const gemini = require("../config/gemini");
 const prisma = require("../config/db");
+const cacheService = require("../services/cacheService");
 
 /**
  * POST /ai/stream
@@ -22,53 +23,18 @@ async function streamGeneration(req, res) {
   let databaseContext = "";
   if (req.user && req.user.username) {
     try {
-      // Find the UserDB by username
-      const userDb = await prisma.userDB.findUnique({
-        where: { username: req.user.username },
-      });
-
-      if (userDb) {
-        // Get query logs
-        const queryLogs = await prisma.queryLog.findMany({
-          where: { userDbId: userDb.id },
-          orderBy: { meanTimeMs: "desc" },
-          take: 20 // Get top 20 slowest queries
-        });
-
-        // Get table structures
-        const tableStructures = await prisma.tableStructure.findMany({
-          where: { userDbId: userDb.id }
-        });
-
-        // Build context string
-        if (queryLogs.length > 0 || tableStructures.length > 0) {
-          databaseContext = "\n\n=== DATABASE CONTEXT ===\n";
-          
-          if (queryLogs.length > 0) {
-            databaseContext += "\n**Recent Query Performance:**\n";
-            queryLogs.forEach((log, index) => {
-              databaseContext += `${index + 1}. Query: ${log.query.substring(0, 100)}${log.query.length > 100 ? '...' : ''}\n`;
-              databaseContext += `   - Calls: ${log.calls}, Mean Time: ${Math.round(log.meanTimeMs)}ms, Total Time: ${Math.round(log.totalTimeMs)}ms\n`;
-            });
-          }
-
-          if (tableStructures.length > 0) {
-            databaseContext += "\n**Table Structures:**\n";
-            tableStructures.forEach(table => {
-              databaseContext += `\nTable: ${table.tableName} (${table.rowCount} rows)\n`;
-              databaseContext += `Columns: ${table.columns.map(col => `${col.column_name} (${col.data_type})`).join(', ')}\n`;
-              if (table.primaryKeys && table.primaryKeys.length > 0) {
-                databaseContext += `Primary Keys: ${table.primaryKeys.join(', ')}\n`;
-              }
-              if (table.indexes && table.indexes.length > 0) {
-                databaseContext += `Indexes: ${table.indexes.map(idx => idx.indexname).join(', ')}\n`;
-              }
-            });
-          }
-          
-          databaseContext += "\n=== END DATABASE CONTEXT ===\n\n";
-        }
+      // Try to get cached context first
+      let context = await cacheService.getQueryContext(req.user.username);
+      
+      if (!context) {
+        // Cache miss - build and cache new context
+        console.log("🔄 Building fresh query context for user:", req.user.username);
+        context = await cacheService.buildAndCacheQueryContext(req.user.username);
+      } else {
+        console.log("⚡ Using cached query context for user:", req.user.username);
       }
+
+      databaseContext = context.databaseContext || "";
     } catch (contextError) {
       console.error("Error fetching database context:", contextError);
       // Continue without context if there's an error
@@ -251,10 +217,18 @@ async function analyzeQuery(req, res) {
       });
     }
 
-    // Get table structures for this database
-    const tableStructures = await prisma.tableStructure.findMany({
-      where: { userDbId: userDb.id }
-    });
+    // Try to get cached context first, fallback to database query
+    let context = await cacheService.getQueryContext(req.user.username);
+    
+    if (!context) {
+      // Cache miss - build and cache new context
+      console.log("🔄 Building fresh query context for analyzeQuery");
+      context = await cacheService.buildAndCacheQueryContext(req.user.username);
+    } else {
+      console.log("⚡ Using cached query context for analyzeQuery");
+    }
+
+    const tableStructures = context.tableStructures || [];
 
     if (tableStructures.length === 0) {
       return res.status(400).json({

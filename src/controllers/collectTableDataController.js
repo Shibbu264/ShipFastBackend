@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const prisma = require("../config/db");
 const { decrypt } = require("../utils/encryption");
 const { Client } = require("pg");
+const cacheService = require("../services/cacheService");
 
 /**
  * Collects table structure data for all connected databases (LOGGING ONLY)
@@ -111,6 +112,10 @@ async function collectTableDataForDatabase(userDb) {
         errors.push(errorMsg);
       }
     }
+
+    // Invalidate cache for this database after table data collection
+    await cacheService.invalidateDatabaseCache(userDb.id);
+    console.log(`🗑️ Invalidated cache for database: ${userDb.dbName}`);
   } catch (error) {
     const errorMsg = `Database connection failed for ${userDb.dbName}: ${error.message}`;
     console.error(`❌ ${errorMsg}`);

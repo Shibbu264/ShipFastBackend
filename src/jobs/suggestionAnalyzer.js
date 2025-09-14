@@ -22,7 +22,7 @@ async function analyzeAndUpdateSuggestions() {
         const slowQueries = await prisma.queryLog.findMany({
           where: { 
             userDbId: userDb.id,
-            meanTimeMs: { gt: 1000 } // Queries slower than 1 second
+            meanTimeMs: { gt: 500 } // Queries slower than 1 second
           },
           orderBy: { meanTimeMs: "desc" },
           take: 10
