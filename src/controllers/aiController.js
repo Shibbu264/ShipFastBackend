@@ -259,7 +259,16 @@ async function analyzeQuery(req, res) {
 
     // System prompt for query analysis
     const systemPrompt = `You are a database performance expert. Analyze the provided SQL query and table structures to provide optimization recommendations.
-If the query is already optimized, return the query as it is.
+
+IMPORTANT: You MUST always return at least one item in recommendedIndexes array. If no index optimization is needed, return:
+{
+  "table": "",
+  "columns": "",
+  "priority": "",
+  "description": "No index optimization required - query is already well-indexed",
+  "sqlStatement": ""
+}
+
 Return your response as a JSON object with this exact structure:
 {
   "success": true,
@@ -267,7 +276,7 @@ Return your response as a JSON object with this exact structure:
   "recommendedIndexes": [
     {
       "table": "table_name",
-      "columns": "column1, column2",
+      "columns": "column1, column2", 
       "priority": "High/Medium/Low",
       "description": "Brief description of the optimization",
       "sqlStatement": "CREATE INDEX statement"
