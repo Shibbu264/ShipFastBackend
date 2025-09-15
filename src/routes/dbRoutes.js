@@ -11,6 +11,7 @@ const {
   generateSuggestions,
   testTableDataCollectionEndpoint,
   getQueryLogById,
+  compareQueries,
 } = require("../controllers/dbController");
 const authenticateJWT = require("../middlewares/auth");
 
@@ -26,5 +27,6 @@ router.post("/generate-suggestions", generateSuggestions);
 router.post("/runAllCronJobs", runAllCronJobs);
 router.post("/test-table-data-collection", testTableDataCollectionEndpoint);
 router.get("/query-log/:queryId", authenticateJWT, getQueryLogById);
+router.post("/compare-queries", authenticateJWT, compareQueries);
 
 module.exports = router;

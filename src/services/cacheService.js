@@ -190,7 +190,7 @@ class CacheService {
 
       const key = this.getCacheKey(username);
       await redisClient.del(key);
-      console.log(`🗑️ Invalidated cache for user: ${username}`);
+      // console.log(`🗑️ Invalidated cache for user: ${username}`);
       return true;
     } catch (error) {
       console.error('Error invalidating user cache:', error);
@@ -217,7 +217,7 @@ class CacheService {
 
       return true;
     } catch (error) {
-      console.error('Error invalidating database cache:', error);
+      // console.error('Error invalidating database cache:', error);
       return false;
     }
   }

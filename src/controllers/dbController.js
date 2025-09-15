@@ -552,6 +552,136 @@ async function getQueryLogById(req, res) {
   }
 }
 
+/**
+ * Compare two SQL queries by running EXPLAIN (FORMAT JSON) on both
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function compareQueries(req, res) {
+  try {
+    const { username } = req.user;
+    const { query1, query2 } = req.body;
+
+    // Validate input
+    if (!query1 || !query2) {
+      return res.status(400).json({ 
+        error: "Both query1 and query2 are required" 
+      });
+    }
+
+    // Get user's database connection
+    const userDb = await prisma.userDB.findUnique({
+      where: { username }
+    });
+
+    if (!userDb) {
+      return res.status(404).json({ 
+        error: "Database connection not found for user" 
+      });
+    }
+
+    // Decrypt password and create database connection
+    const { decrypt } = require("../utils/encryption");
+    const password = decrypt(userDb.passwordEncrypted);
+    
+    const client = new Client({
+      host: userDb.host,
+      port: userDb.port,
+      database: userDb.dbName,
+      user: userDb.username,
+      password
+    });
+
+    try {
+      await client.connect();
+      console.log(`Connected to database ${userDb.dbName} for query comparison`);
+
+      // Run EXPLAIN (FORMAT JSON) on both queries
+      let plan1 = null;
+      let plan2 = null;
+      let error1 = null;
+      let error2 = null;
+
+      try {
+        // Clean the query by removing comments and normalizing whitespace
+        const cleanQuery1 = query1
+          .replace(/--.*$/gm, '') // Remove SQL comments
+          .replace(/\s+/g, ' ')   // Replace multiple whitespace with single space
+          .trim();
+        console.log('Cleaned query1:', cleanQuery1);
+        
+        const explainResult1 = await client.query(`EXPLAIN (FORMAT JSON) ${cleanQuery1}`);
+        console.log('Query1 EXPLAIN result:', JSON.stringify(explainResult1.rows, null, 2));
+        
+        // Try different ways to access the plan
+        if (explainResult1.rows && explainResult1.rows.length > 0) {
+          const row = explainResult1.rows[0];
+          plan1 = row.query_plan || row['QUERY PLAN'] || row[0] || null;
+        }
+        console.log('Query1 extracted plan:', plan1);
+      } catch (err) {
+        console.error(`Error explaining query1:`, err.message);
+        error1 = err.message;
+      }
+
+      try {
+        // Clean the query by removing comments and normalizing whitespace
+        const cleanQuery2 = query2
+          .replace(/--.*$/gm, '') // Remove SQL comments
+          .replace(/\s+/g, ' ')   // Replace multiple whitespace with single space
+          .trim();
+        console.log('Cleaned query2:', cleanQuery2);
+        
+        const explainResult2 = await client.query(`EXPLAIN (FORMAT JSON) ${cleanQuery2}`);
+        console.log('Query2 EXPLAIN result:', JSON.stringify(explainResult2.rows, null, 2));
+        
+        // Try different ways to access the plan
+        if (explainResult2.rows && explainResult2.rows.length > 0) {
+          const row = explainResult2.rows[0];
+          plan2 = row.query_plan || row['QUERY PLAN'] || row[0] || null;
+        }
+        console.log('Query2 extracted plan:', plan2);
+      } catch (err) {
+        console.error(`Error explaining query2:`, err.message);
+        error2 = err.message;
+      }
+
+      // Return both plans with error information
+      res.json({
+        success: true,
+        data: {
+          query1: {
+            sql: query1,
+            plan: plan1,
+            error: error1
+          },
+          query2: {
+            sql: query2,
+            plan: plan2,
+            error: error2
+          }
+        }
+      });
+
+    } catch (dbError) {
+      console.error(`Database error during query comparison:`, dbError);
+      return res.status(500).json({ 
+        error: "Failed to execute queries", 
+        details: dbError.message 
+      });
+    } finally {
+      await client.end();
+    }
+
+  } catch (error) {
+    console.error("Error in compareQueries:", error);
+    res.status(500).json({ 
+      error: "Internal server error", 
+      details: error.message 
+    });
+  }
+}
+
 module.exports = {
   connectDatabase,
   getQueryLogs,
@@ -563,4 +693,5 @@ module.exports = {
   generateSuggestions,
   testTableDataCollectionEndpoint,
   getQueryLogById,
+  compareQueries,
 };

@@ -115,7 +115,7 @@ async function collectTableDataForDatabase(userDb) {
 
     // Invalidate cache for this database after table data collection
     await cacheService.invalidateDatabaseCache(userDb.id);
-    console.log(`🗑️ Invalidated cache for database: ${userDb.dbName}`);
+    // console.log(`🗑️ Invalidated cache for database: ${userDb.dbName}`);
   } catch (error) {
     const errorMsg = `Database connection failed for ${userDb.dbName}: ${error.message}`;
     console.error(`❌ ${errorMsg}`);
