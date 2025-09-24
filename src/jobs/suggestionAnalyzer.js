@@ -3,10 +3,184 @@ const prisma = require("../config/db");
 const gemini = require("../config/gemini");
 
 /**
- * Analyze slow queries and generate top 3 suggestions using AI
+ * Gather comprehensive database metrics for analysis
+ */
+async function gatherDatabaseMetrics(userDbId) {
+  try {
+    // Get query performance data
+    const queryLogs = await prisma.queryLog.findMany({
+      where: { userDbId },
+      orderBy: { meanTimeMs: "desc" },
+      take: 20
+    });
+
+    // Get table usage statistics
+    const tableUsages = await prisma.tableUsage.findMany({
+      where: { userDbId },
+      orderBy: { callCount: "desc" }
+    });
+
+    // Get table structures
+    const tableStructures = await prisma.tableStructure.findMany({
+      where: { userDbId }
+    });
+
+    // Get top slow queries
+    const topSlowQueries = await prisma.topSlowQuery.findMany({
+      where: { userDbId },
+      orderBy: { meanTimeMs: "desc" },
+      take: 10
+    });
+
+    // Calculate performance statistics
+    const performanceStats = calculatePerformanceStats(queryLogs);
+    
+    // Analyze table relationships and usage patterns
+    const tableAnalysis = analyzeTableUsage(tableUsages, tableStructures);
+
+    return {
+      hasData: queryLogs.length > 0 || tableStructures.length > 0,
+      queryLogs,
+      tableUsages,
+      tableStructures,
+      topSlowQueries,
+      performanceStats,
+      tableAnalysis,
+      totalTables: tableStructures.length,
+      totalQueries: queryLogs.length,
+      avgQueryTime: performanceStats.avgQueryTime,
+      slowestQuery: performanceStats.slowestQuery,
+      mostUsedTables: tableAnalysis.mostUsedTables,
+      unusedTables: tableAnalysis.unusedTables
+    };
+  } catch (error) {
+    console.error("Error gathering database metrics:", error);
+    return { hasData: false };
+  }
+}
+
+/**
+ * Calculate performance statistics from query logs
+ */
+function calculatePerformanceStats(queryLogs) {
+  if (queryLogs.length === 0) {
+    return {
+      avgQueryTime: 0,
+      slowestQuery: null,
+      totalCalls: 0,
+      totalTime: 0
+    };
+  }
+
+  const totalCalls = queryLogs.reduce((sum, q) => sum + q.calls, 0);
+  const totalTime = queryLogs.reduce((sum, q) => sum + q.totalTimeMs, 0);
+  const avgQueryTime = totalTime / totalCalls;
+  const slowestQuery = queryLogs[0]; // Already sorted by meanTimeMs desc
+
+  return {
+    avgQueryTime: Math.round(avgQueryTime),
+    slowestQuery,
+    totalCalls,
+    totalTime: Math.round(totalTime)
+  };
+}
+
+/**
+ * Analyze table usage patterns
+ */
+function analyzeTableUsage(tableUsages, tableStructures) {
+  const tableUsageMap = new Map();
+  tableUsages.forEach(usage => {
+    tableUsageMap.set(usage.tableName, usage);
+  });
+
+  const mostUsedTables = tableUsages
+    .sort((a, b) => b.callCount - a.callCount)
+    .slice(0, 5);
+
+  const unusedTables = tableStructures.filter(table => 
+    !tableUsageMap.has(table.tableName)
+  );
+
+  return {
+    mostUsedTables,
+    unusedTables,
+    totalTableUsages: tableUsages.length
+  };
+}
+
+/**
+ * Generate fallback suggestions based on database metrics
+ */
+function generateFallbackSuggestions(dbMetrics) {
+  const suggestions = [];
+  
+  // Suggestion 1: Based on query performance
+  if (dbMetrics.performanceStats.avgQueryTime > 100) {
+    suggestions.push({
+      title: "Optimize Query Performance",
+      description: `Average query time is ${dbMetrics.performanceStats.avgQueryTime}ms. Consider adding indexes and optimizing query structure.`,
+      priority: "high",
+      category: "query_optimization"
+    });
+  } else {
+    suggestions.push({
+      title: "Monitor Query Performance",
+      description: "Set up comprehensive monitoring to track query performance and identify bottlenecks early.",
+      priority: "medium",
+      category: "monitoring"
+    });
+  }
+
+  // Suggestion 2: Based on table usage
+  if (dbMetrics.unusedTables.length > 0) {
+    suggestions.push({
+      title: "Clean Up Unused Tables",
+      description: `Found ${dbMetrics.unusedTables.length} unused tables that can be removed to reduce storage overhead.`,
+      priority: "low",
+      category: "maintenance"
+    });
+  } else if (dbMetrics.tableAnalysis.mostUsedTables.length > 0) {
+    suggestions.push({
+      title: "Optimize Table Access Patterns",
+      description: `Focus on optimizing the most frequently accessed tables: ${dbMetrics.tableAnalysis.mostUsedTables.slice(0, 3).map(t => t.tableName).join(', ')}.`,
+      priority: "medium",
+      category: "table_optimization"
+    });
+  } else {
+    suggestions.push({
+      title: "Review Database Schema",
+      description: "Analyze table structures and relationships to identify optimization opportunities.",
+      priority: "medium",
+      category: "schema_design"
+    });
+  }
+
+  // Suggestion 3: General database health
+  if (dbMetrics.totalTables > 10) {
+    suggestions.push({
+      title: "Consider Table Partitioning",
+      description: `With ${dbMetrics.totalTables} tables, consider partitioning large tables to improve performance and maintenance.`,
+      priority: "low",
+      category: "partitioning"
+    });
+  } else {
+    suggestions.push({
+      title: "Review Database Configuration",
+      description: "Review and optimize database configuration settings for better performance.",
+      priority: "low",
+      category: "configuration"
+    });
+  }
+
+  return suggestions;
+}
+
+/**
+ * Analyze whole database and generate top 3 suggestions using AI
  */
 async function analyzeAndUpdateSuggestions() {
-  console.log("🔍 Starting suggestion analysis...");
+  console.log("🔍 Starting comprehensive database analysis...");
   
   try {
     // Get all UserDBs that have monitoring enabled
@@ -16,71 +190,60 @@ async function analyzeAndUpdateSuggestions() {
 
     for (const userDb of userDbs) {
       try {
-        console.log(`📊 Analyzing suggestions for userDb: ${userDb.username}`);
+        console.log(`📊 Analyzing database for userDb: ${userDb.username}`);
         
-        // Get slow queries for this userDb
-        const slowQueries = await prisma.queryLog.findMany({
-          where: { 
-            userDbId: userDb.id,
-            meanTimeMs: { gt: 500 } // Queries slower than 1 second
-          },
-          orderBy: { meanTimeMs: "desc" },
-          take: 10
-        });
-
-        if (slowQueries.length === 0) {
-          console.log(`✅ No slow queries found for ${userDb.username}`);
+        // Get comprehensive database metrics
+        const dbMetrics = await gatherDatabaseMetrics(userDb.id);
+        
+        if (!dbMetrics.hasData) {
+          console.log(`✅ No data found for analysis of ${userDb.username}`);
           continue;
         }
 
-        // Prepare query data for analysis
-        const queryData = slowQueries.map(q => ({
-          query: q.query,
-          avgTime: Math.round(q.meanTimeMs),
-          frequency: q.calls,
-          totalTime: Math.round(q.totalTimeMs)
-        }));
-
-        // System prompt for structured suggestions
-        const systemPrompt = `You are a database performance expert. Analyze the provided slow queries and provide exactly 3 specific, actionable recommendations for optimization.
-Don't analyze query related to create or system queries.
+        // System prompt for comprehensive database analysis
+        const systemPrompt = `You are a database performance expert. Analyze the provided comprehensive database metrics and provide exactly 3 specific, actionable recommendations for optimization.
+Don't analyze queries related to create or system queries.
 Return your response as a JSON array with exactly 3 objects, each containing:
 - "title": A brief title for the suggestion
 - "description": Detailed explanation of the issue and solution
 - "priority": "high", "medium", or "low"
-- "category": One of "indexing", "query_optimization", "schema_design", "configuration", or "monitoring"
+- "category": One of "indexing", "query_optimization", "schema_design", "configuration", "monitoring", "table_optimization", "partitioning", "maintenance", or "capacity_planning"
 
 Focus on:
-1. Missing indexes
-2. Query structure issues  
-3. Performance bottlenecks
-4. Configuration improvements
+1. Missing indexes and index optimization
+2. Query structure and performance issues  
+3. Table usage patterns and optimization
+4. Schema design improvements
+5. Database configuration tuning
+6. Table partitioning opportunities
+7. Maintenance and cleanup tasks
+8. Capacity planning and resource optimization
 
 Be specific and actionable. Example format:
 [
   {
-    "title": "Add Index on User Email",
-    "description": "The query 'SELECT * FROM users WHERE email = ?' is missing an index on the email column, causing full table scans.",
+    "title": "Add Composite Index on User Table",
+    "description": "The users table is heavily accessed but missing a composite index on (status, created_at) which would improve query performance by 60%.",
     "priority": "high",
     "category": "indexing"
   },
   {
-    "title": "Optimize JOIN Query",
-    "description": "The complex JOIN query can be optimized by adding proper indexes and restructuring the WHERE clause.",
+    "title": "Partition Large Log Table",
+    "description": "The query_logs table has 2M+ rows and should be partitioned by date to improve query performance and maintenance.",
     "priority": "medium", 
-    "category": "query_optimization"
+    "category": "partitioning"
   },
   {
-    "title": "Enable Query Caching",
-    "description": "Enable query result caching to reduce repeated expensive operations.",
+    "title": "Clean Up Unused Tables",
+    "description": "Remove 3 unused tables (temp_data, old_logs, backup_users) to reduce storage overhead and simplify maintenance.",
     "priority": "low",
-    "category": "configuration"
+    "category": "maintenance"
   }
 ]`;
 
-        const analysisPrompt = `Please analyze these slow database queries and provide exactly 3 optimization recommendations in the specified JSON format:
+        const analysisPrompt = `Please analyze this comprehensive database data and provide exactly 3 optimization recommendations in the specified JSON format:
 
-${JSON.stringify(queryData, null, 2)}`;
+${JSON.stringify(dbMetrics, null, 2)}`;
 
         // Get AI suggestions
         const suggestionsResponse = await gemini.generateResponse(systemPrompt, analysisPrompt, {
@@ -99,27 +262,8 @@ ${JSON.stringify(queryData, null, 2)}`;
           }
         } catch (parseError) {
           console.error(`❌ Failed to parse suggestions for ${userDb.username}:`, parseError);
-          // Fallback suggestions
-          suggestions = [
-            {
-              title: "Review Query Performance",
-              description: "Consider analyzing the slow queries and adding appropriate indexes.",
-              priority: "high",
-              category: "query_optimization"
-            },
-            {
-              title: "Check Database Configuration",
-              description: "Review database configuration settings for optimal performance.",
-              priority: "medium",
-              category: "configuration"
-            },
-            {
-              title: "Monitor Query Patterns",
-              description: "Set up monitoring to track query performance over time.",
-              priority: "low",
-              category: "monitoring"
-            }
-          ];
+          // Fallback suggestions based on database metrics
+          suggestions = generateFallbackSuggestions(dbMetrics);
         }
 
         // Ensure we have exactly 3 suggestions
@@ -141,30 +285,30 @@ ${JSON.stringify(queryData, null, 2)}`;
           }
         });
 
-        console.log(`✅ Updated suggestions for ${userDb.username}`);
+        console.log(`✅ Updated comprehensive database suggestions for ${userDb.username}`);
 
       } catch (error) {
-        console.error(`❌ Error analyzing suggestions for ${userDb.username}:`, error.message);
+        console.error(`❌ Error analyzing database for ${userDb.username}:`, error.message);
       }
     }
 
-    console.log("🎉 Suggestion analysis completed");
+    console.log("🎉 Comprehensive database analysis completed");
   } catch (error) {
     console.error("❌ Error in suggestion analysis:", error);
   }
 }
 
 /**
- * Start the cron job to run every 20 minutes
+ * Start the cron job to run comprehensive database analysis every 20 minutes
  */
 function startSuggestionCron() {
   // Run every 20 minutes: "*/20 * * * *"
   cron.schedule("*/20 * * * *", analyzeAndUpdateSuggestions);
-  console.log("⏰ Suggestion analysis cron job started (every 20 minutes)");
+  console.log("⏰ Comprehensive database analysis cron job started (every 20 minutes)");
 }
 
 /**
- * Manual trigger for testing
+ * Manual trigger for testing comprehensive database analysis
  */
 async function runSuggestionAnalysis() {
   await analyzeAndUpdateSuggestions();
