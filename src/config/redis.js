@@ -1,11 +1,7 @@
 const { Redis } = require('@upstash/redis');
 
 // Upstash Redis client configuration
-const redisClient = new Redis({
-  url: process.env.REDIS_REDIS_URL,
-  token: process.env.REDIS_KV_REST_API_TOKEN,
-});
-
+const redisClient = Redis.fromEnv();
 // Test connection
 redisClient.ping()
   .then(() => {
