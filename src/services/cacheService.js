@@ -26,12 +26,6 @@ class CacheService {
    */
   async getQueryContext(username) {
     try {
-      // Check if Redis is connected
-      if (!redisClient.isOpen) {
-        console.log(`⚠️ Redis not connected, skipping cache for user: ${username}`);
-        return null;
-      }
-
       const key = this.getCacheKey(username);
       const cached = await redisClient.get(key);
       
@@ -56,16 +50,10 @@ class CacheService {
    */
   async setQueryContext(username, context) {
     try {
-      // Check if Redis is connected
-      if (!redisClient.isOpen) {
-        console.log(`⚠️ Redis not connected, skipping cache storage for user: ${username}`);
-        return false;
-      }
-
       const key = this.getCacheKey(username);
       const serialized = JSON.stringify(context);
       
-      await redisClient.setEx(key, this.CACHE_TTL, serialized);
+      await redisClient.setex(key, this.CACHE_TTL, serialized);
       console.log(`💾 Cached query context for user: ${username}`);
       return true;
     } catch (error) {
@@ -182,12 +170,6 @@ class CacheService {
    */
   async invalidateUserCache(username) {
     try {
-      // Check if Redis is connected
-      if (!redisClient.isOpen) {
-        console.log(`⚠️ Redis not connected, skipping cache invalidation for user: ${username}`);
-        return false;
-      }
-
       const key = this.getCacheKey(username);
       await redisClient.del(key);
       // console.log(`🗑️ Invalidated cache for user: ${username}`);
@@ -228,17 +210,19 @@ class CacheService {
    */
   async getCacheStats() {
     try {
-      const info = await redisClient.info('memory');
-      const keyspace = await redisClient.info('keyspace');
+      // Test connection with ping
+      const pingResult = await redisClient.ping();
       
       return {
-        memory: info,
-        keyspace: keyspace,
-        connected: redisClient.isOpen
+        connected: pingResult === 'PONG',
+        message: pingResult === 'PONG' ? 'Connected to Upstash Redis' : 'Connection failed'
       };
     } catch (error) {
       console.error('Error getting cache stats:', error);
-      return { error: error.message };
+      return { 
+        connected: false,
+        error: error.message 
+      };
     }
   }
 
